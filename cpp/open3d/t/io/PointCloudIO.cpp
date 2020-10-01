@@ -24,7 +24,7 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "open3d/io/TPointCloudIO.h"
+#include "open3d/t/io/PointCloudIO.h"
 
 #include <iostream>
 #include <unordered_map>
@@ -35,6 +35,7 @@
 #include "open3d/utility/ProgressReporters.h"
 
 namespace open3d {
+namespace t {
 namespace io {
 
 static const std::unordered_map<
@@ -156,4 +157,5 @@ bool WritePointCloud(const std::string &filename,
 }
 
 }  // namespace io
+}  // namespace t
 }  // namespace open3d

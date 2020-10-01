@@ -30,12 +30,14 @@
 #include "open3d/core/Tensor.h"
 #include "open3d/core/TensorList.h"
 #include "open3d/io/FileFormatIO.h"
-#include "open3d/io/TPointCloudIO.h"
+#include "open3d/t/io/FileFormatIO.h"
+#include "open3d/t/io/PointCloudIO.h"
 #include "open3d/utility/Console.h"
 #include "open3d/utility/FileSystem.h"
 #include "open3d/utility/ProgressReporters.h"
 
 namespace open3d {
+namespace t {
 namespace io {
 
 FileGeometry ReadFileGeometryTypeXYZI(const std::string &path) {
@@ -141,4 +143,5 @@ bool WritePointCloudToXYZI(const std::string &filename,
 }
 
 }  // namespace io
+}  // namespace t
 }  // namespace open3d
