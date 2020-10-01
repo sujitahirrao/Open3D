@@ -85,9 +85,8 @@ static const std::unordered_map<std::string, std::string>
 };
 
 void pybind_class_io(py::module &m_io) {
-    // open3d::t::geometry::PointCloud
     m_io.def(
-            "read_t_point_cloud",
+            "read_point_cloud",
             [](const std::string &filename, const std::string &format,
                bool remove_nan_points, bool remove_infinite_points,
                bool print_progress) {
@@ -105,7 +104,7 @@ void pybind_class_io(py::module &m_io) {
                                  map_shared_argument_docstrings);
 
     m_io.def(
-            "write_t_point_cloud",
+            "write_point_cloud",
             [](const std::string &filename,
                const t::geometry::PointCloud &pointcloud, bool write_ascii,
                bool compressed, bool print_progress) {
