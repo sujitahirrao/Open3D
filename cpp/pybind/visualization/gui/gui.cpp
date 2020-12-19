@@ -26,6 +26,7 @@
 
 #include "pybind/visualization/gui/gui.h"
 
+#include "open3d/geometry/Image.h"
 #include "open3d/utility/FileSystem.h"
 #include "open3d/visualization/gui/Application.h"
 #include "open3d/visualization/gui/Button.h"
@@ -58,48 +59,12 @@
 #include "open3d/visualization/rendering/filament/FilamentEngine.h"
 #include "open3d/visualization/rendering/filament/FilamentRenderToBuffer.h"
 #include "pybind/docstring.h"
+#include "pybind/visualization/visualization.h"
 #include "pybind11/functional.h"
-
-// We cannot give out a shared_ptr to objects like Window which reference
-// Filament objects, because we cannot guarantee that the Python script is
-// not holding on to a reference when we cleanup Filament. The Open3D library
-// will clear its shared_ptrs expecting the dependent object(s) to clean up,
-// but they won't because Python still has a shared_ptr, leading to a crash
-// when the variable goes of scope on the Python side.
-// The following would crash gui.Window's holder is std::shared_ptr:
-//   import open3d.visualization.gui as gui
-//   def main():
-//       gui.Application.instance.initialize()
-//       w = gui.Application.instance.create_window("Crash", 640, 480)
-//       gui.Application.instance.run()
-//   if __name__ == "__main__":
-//       main()
-// However, if remove the 'w = ' part, it would not crash.
-template <typename T>
-class UnownedPointer {
-public:
-    UnownedPointer() : ptr_(nullptr) {}
-    explicit UnownedPointer(T *p) : ptr_(p) {}
-    ~UnownedPointer() {}  // don't delete!
-
-    T *get() { return ptr_; }
-    T &operator*() { return *ptr_; }
-    T *operator->() { return ptr_; }
-    void reset() { ptr_ = nullptr; }  // don't delete!
-
-private:
-    T *ptr_;
-};
-PYBIND11_DECLARE_HOLDER_TYPE(T, UnownedPointer<T>);
 
 namespace open3d {
 namespace visualization {
 namespace gui {
-
-template <typename T>
-std::shared_ptr<T> TakeOwnership(UnownedPointer<T> x) {
-    return std::shared_ptr<T>(x.get());
-}
 
 class PythonUnlocker : public Application::EnvUnlocker {
 public:
@@ -202,6 +167,8 @@ std::shared_ptr<geometry::Image> RenderToImageWithoutWindow(
             unlocker, scene->GetView(), scene->GetScene(), width, height);
 }
 
+enum class EventCallbackResult { IGNORED = 0, HANDLED, CONSUMED };
+
 void pybind_gui_classes(py::module &m) {
     // ---- Application ----
     py::class_<Application> application(m, "Application",
@@ -241,6 +208,27 @@ void pybind_gui_classes(py::module &m) {
                     "provided by the caller. One of the `initialize` functions "
                     "_must_ be called prior to using anything in the gui "
                     "module")
+            .def("set_font_for_language", &Application::SetFontForLanguage,
+                 "set_font_for_language(font, language_code). The font can "
+                 "the path to a TrueType or OpenType font or it can be the "
+                 "name of the font, in which case the font will be located "
+                 "from the system directories. The language code must be "
+                 "two-letter, lowercase ISO 639-1 codes. Support is "
+                 "available for 'en' (English), 'ja' (Japanese), 'ko' "
+                 "(Korean), 'th' (Thai), 'vi' (Vietnamese), 'zh' (common "
+                 "Chinese characters), 'zh_all' (all Chinese characters; "
+                 "this creates a very large bitmap for each window). All "
+                 "other codes are assumed to by Cyrillic. Note that 'ja', "
+                 "'zh' will create a 50 MB bitmap, and 'zh_all' creates a "
+                 "200 MB bitmap")
+
+            .def("set_font_for_code_points", &Application::SetFontForCodePoints,
+                 "set_font_for_code_points(font, [unicode_code_points])."
+                 "The font can the path to a TrueType or OpenType font or "
+                 "it can be the name of the font, in which case the font "
+                 "will be located from the system directories. No error "
+                 "will be produced if the font does not contain glyphs "
+                 "for the specified components.")
             .def(
                     "create_window",
                     [](Application &instance, const std::string &title,
@@ -314,6 +302,11 @@ void pybind_gui_classes(py::module &m) {
             .def(
                     "quit", [](Application &instance) { instance.Quit(); },
                     "Closes all the windows, exiting as a result")
+            .def("add_window", &Application::AddWindow,
+                 "Adds a window to the application. This is only necessary "
+                 "when "
+                 "creating object that is a Window directly, rather than with "
+                 "create_window")
             .def("run_in_thread", &Application::RunInThread,
                  "Runs function in a separate thread. Do not call GUI "
                  "functions on this thread, call post_to_main_thread() if "
@@ -547,6 +540,25 @@ void pybind_gui_classes(py::module &m) {
     //  2) if the object is never added, the memory will be leaked.
     py::class_<Widget, UnownedPointer<Widget>> widget(m, "Widget",
                                                       "Base widget class");
+    py::enum_<EventCallbackResult> widget_event_callback_result(
+            widget, "EventCallbackResult", "Returned by event handlers",
+            py::arithmetic());
+    widget_event_callback_result
+            .value("IGNORED", EventCallbackResult::IGNORED,
+                   "Event handler ignored the event, widget will "
+                   "handle event normally")
+            .value("HANDLED", EventCallbackResult::HANDLED,
+                   "Event handler handled the event, but widget "
+                   "will still handle the event normally. This is "
+                   "useful when you are augmenting base "
+                   "functionality")
+            .value("CONSUMED", EventCallbackResult::CONSUMED,
+                   "Event handler consumed the event, event "
+                   "handling stops, widget will not handle the "
+                   "event. This is useful when you are replacing "
+                   "functionality")
+            .export_values();
+
     widget.def(py::init<>())
             .def("__repr__",
                  [](const Widget &w) {
@@ -853,7 +865,63 @@ void pybind_gui_classes(py::module &m) {
                     "The value of the progress bar, ranges from 0.0 to 1.0");
 
     // ---- SceneWidget ----
-    py::class_<SceneWidget, UnownedPointer<SceneWidget>, Widget> scene(
+    class PySceneWidget : public SceneWidget {
+        using Super = SceneWidget;
+
+    public:
+        void SetOnMouse(std::function<int(const MouseEvent &)> f) {
+            on_mouse_ = f;
+        }
+        void SetOnKey(std::function<int(const KeyEvent &)> f) { on_key_ = f; }
+
+        Widget::EventResult Mouse(const MouseEvent &e) override {
+            if (on_mouse_) {
+                switch (EventCallbackResult(on_mouse_(e))) {
+                    case EventCallbackResult::CONSUMED:
+                        return Widget::EventResult::CONSUMED;
+                    case EventCallbackResult::HANDLED: {
+                        auto result = Super::Mouse(e);
+                        if (result == Widget::EventResult::IGNORED) {
+                            result = Widget::EventResult::CONSUMED;
+                        }
+                        return result;
+                    }
+                    case EventCallbackResult::IGNORED:
+                    default:
+                        return Super::Mouse(e);
+                }
+            } else {
+                return Super::Mouse(e);
+            }
+        }
+
+        Widget::EventResult Key(const KeyEvent &e) override {
+            if (on_key_) {
+                switch (EventCallbackResult(on_key_(e))) {
+                    case EventCallbackResult::CONSUMED:
+                        return Widget::EventResult::CONSUMED;
+                    case EventCallbackResult::HANDLED: {
+                        auto result = Super::Key(e);
+                        if (result == Widget::EventResult::IGNORED) {
+                            result = Widget::EventResult::CONSUMED;
+                        }
+                        return result;
+                    }
+                    case EventCallbackResult::IGNORED:
+                    default:
+                        return Super::Key(e);
+                }
+            } else {
+                return Super::Key(e);
+            }
+        }
+
+    private:
+        std::function<int(const MouseEvent &)> on_mouse_;
+        std::function<int(const KeyEvent &)> on_key_;
+    };
+
+    py::class_<PySceneWidget, UnownedPointer<PySceneWidget>, Widget> scene(
             m, "SceneWidget", "Displays 3D content");
     py::enum_<SceneWidget::Controls> scene_ctrl(scene, "Controls",
                                                 py::arithmetic());
@@ -868,28 +936,39 @@ void pybind_gui_classes(py::module &m) {
             .value("ROTATE_SUN", SceneWidget::Controls::ROTATE_SUN)
             .value("ROTATE_IBL", SceneWidget::Controls::ROTATE_IBL)
             .value("ROTATE_MODEL", SceneWidget::Controls::ROTATE_MODEL)
+            .value("PICK_POINTS", SceneWidget::Controls::PICK_POINTS)
             .export_values();
 
     scene.def(py::init<>(),
               "Creates an empty SceneWidget. Assign a Scene with the 'scene' "
               "property")
             .def_property(
-                    "scene", &SceneWidget::GetScene, &SceneWidget::SetScene,
+                    "scene", &PySceneWidget::GetScene, &SceneWidget::SetScene,
                     "The rendering.Open3DScene that the SceneWidget renders")
-            .def("enable_scene_caching", &SceneWidget::EnableSceneCaching,
+            .def("enable_scene_caching", &PySceneWidget::EnableSceneCaching,
                  "Enable/Disable caching of scene content when the view or "
                  "model is not changing. Scene caching can help improve UI "
                  "responsiveness for large models and point clouds")
-            .def("force_redraw", &SceneWidget::ForceRedraw,
+            .def("force_redraw", &PySceneWidget::ForceRedraw,
                  "Ensures scene redraws even when scene caching is enabled.")
-            .def("set_view_controls", &SceneWidget::SetViewControls,
+            .def("set_view_controls", &PySceneWidget::SetViewControls,
                  "Sets mouse interaction, e.g. ROTATE_OBJ")
-            .def("setup_camera", &SceneWidget::SetupCamera,
+            .def("setup_camera", &PySceneWidget::SetupCamera,
                  "Configure the camera: setup_camera(field_of_view, "
                  "model_bounds, "
                  "center_of_rotation)")
+            .def("set_on_mouse", &PySceneWidget::SetOnMouse,
+                 "Sets a callback for mouse events. This callback is passed "
+                 "a MouseEvent object. The callback must return "
+                 "EventCallbackResult.IGNORED, EventCallbackResult.HANDLED, "
+                 "or EventCallackResult.CONSUMED.")
+            .def("set_on_key", &PySceneWidget::SetOnKey,
+                 "Sets a callback for key events. This callback is passed "
+                 "a KeyEvent object. The callback must return "
+                 "EventCallbackResult.IGNORED, EventCallbackResult.HANDLED, "
+                 "or EventCallackResult.CONSUMED.")
             .def("set_on_sun_direction_changed",
-                 &SceneWidget::SetOnSunDirectionChanged,
+                 &PySceneWidget::SetOnSunDirectionChanged,
                  "Callback when user changes sun direction (only called in "
                  "ROTATE_SUN control mode). Called with one argument, the "
                  "[i, j, k] vector of the new sun direction");
@@ -1334,6 +1413,7 @@ void pybind_gui_classes(py::module &m) {
 
 void pybind_gui(py::module &m) {
     py::module m_gui = m.def_submodule("gui");
+    pybind_gui_events(m_gui);
     pybind_gui_classes(m_gui);
 }
 

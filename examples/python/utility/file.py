@@ -8,6 +8,7 @@ from os import listdir, makedirs
 from os.path import exists, isfile, join, splitext
 import shutil
 import re
+import open3d as o3d
 
 
 def sorted_alphanum(file_list_ordered):
@@ -59,6 +60,8 @@ def make_clean_folder(path_folder):
 
 
 def check_folder_structure(path_dataset):
+    if isfile(path_dataset) and path_dataset.endswith(".bag"):
+        return
     path_color, path_depth = get_rgbd_folders(path_dataset)
     assert exists(path_depth), \
             "Path %s is not exist!" % path_depth
@@ -78,3 +81,27 @@ def write_poses_to_log(filename, poses):
                 pose[2, 0], pose[2, 1], pose[2, 2], pose[2, 3]))
             f.write('{0:.8f} {1:.8f} {2:.8f} {3:.8f}\n'.format(
                 pose[3, 0], pose[3, 1], pose[3, 2], pose[3, 3]))
+
+
+def read_poses_from_log(traj_log):
+    import numpy as np
+
+    trans_arr = []
+    with open(traj_log) as f:
+        content = f.readlines()
+
+        # Load .log file.
+        for i in range(0, len(content), 5):
+            # format %d (src) %d (tgt) %f (fitness)
+            data = list(map(float, content[i].strip().split(' ')))
+            ids = (int(data[0]), int(data[1]))
+            fitness = data[2]
+
+            # format %f x 16
+            T_gt = np.array(
+                list(map(float, (''.join(
+                    content[i + 1:i + 5])).strip().split()))).reshape((4, 4))
+
+            trans_arr.append(T_gt)
+
+    return trans_arr

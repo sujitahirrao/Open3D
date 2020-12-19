@@ -39,6 +39,8 @@ if (NOT BUILD_GUI)
         "${CMAKE_CURRENT_SOURCE_DIR}/visualization/gui/gui.cpp")
     list(REMOVE_ITEM PY_ALL_SOURCE_FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/visualization/rendering/rendering.cpp")
+    list(REMOVE_ITEM PY_ALL_SOURCE_FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/visualization/o3dvisualizer.cpp")
 endif()
 
 if (NOT BUILD_AZURE_KINECT)
@@ -80,8 +82,14 @@ open3d_set_global_properties(${PACKAGE_NAME})
 if (BUILD_AZURE_KINECT)
     target_compile_definitions(${PACKAGE_NAME} PRIVATE BUILD_AZURE_KINECT)
 endif()
+if (BUILD_LIBREALSENSE)
+    target_compile_definitions(${PACKAGE_NAME} PRIVATE BUILD_LIBREALSENSE)
+endif()
 if (BUILD_GUI)
     target_compile_definitions(${PACKAGE_NAME} PRIVATE BUILD_GUI)
+endif()
+if (WITH_FAISS)
+    target_compile_definitions(${PACKAGE_NAME} PRIVATE WITH_FAISS)
 endif()
 
 target_link_libraries(${PACKAGE_NAME} PRIVATE ${CMAKE_PROJECT_NAME})

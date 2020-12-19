@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
 # The following environment variables are required:
+SUDO=${SUDO:=sudo}
+UBUNTU_VERSION=${UBUNTU_VERSION:="$(lsb_release -cs 2>/dev/null || true)"} # Empty in macOS
+
 SHARED=${SHARED:-OFF}
 NPROC=${NPROC:-$(getconf _NPROCESSORS_ONLN)} # POSIX: MacOS + Linux
 if [ -z "${BUILD_CUDA_MODULE:+x}" ]; then
@@ -18,24 +21,33 @@ fi
 BUILD_RPC_INTERFACE=${BUILD_RPC_INTERFACE:-ON}
 LOW_MEM_USAGE=${LOW_MEM_USAGE:-OFF}
 
-# Dependency versions
+# Dependency versions:
+# CUDA
 CUDA_VERSION=("10-1" "10.1")
 CUDNN_MAJOR_VERSION=7
 CUDNN_VERSION="7.6.5.32-1+cuda10.1"
+# ML
 TENSORFLOW_VER="2.3.1"
 TORCH_CUDA_GLNX_VER="1.6.0+cu101"
 TORCH_CPU_GLNX_VER="1.6.0+cpu"
 TORCH_MACOS_VER="1.6.0"
-YAPF_VER="0.30.0"
+# Python
+CONDA_BUILD_VER="3.20.0"
 PIP_VER="20.2.4"
 WHEEL_VER="0.35.1"
 STOOLS_VER="50.3.2"
 PYTEST_VER="6.0.1"
 SCIPY_VER="1.4.1"
-CONDA_BUILD_VER="3.20.0"
+YAPF_VER="0.30.0"
+
+# Documentation
+SPHINX_VER=3.1.2
+SPHINX_RTD_VER=0.5.0
+NBSPHINX_VER=0.7.1
+PILLOW_VER=7.2.0
 
 OPEN3D_INSTALL_DIR=~/open3d_install
-OPEN3D_SOURCE_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/.. >/dev/null 2>&1 && pwd )"
+OPEN3D_SOURCE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. >/dev/null 2>&1 && pwd)"
 
 install_cuda_toolkit() {
 
@@ -154,6 +166,41 @@ install_python_dependencies() {
     fi
 }
 
+install_librealsense2() {
+
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        echo Installing librealsense
+        echo Reference: https://github.com/IntelRealSense/librealsense/blob/master/doc/distribution_linux.md
+        $SUDO apt-key adv --keyserver keys.gnupg.net --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE ||
+            $SUDO apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE
+
+        $SUDO apt-add-repository "deb http://realsense-hw-public.s3.amazonaws.com/Debian/apt-repo ${UBUNTU_VERSION} main" -u
+        $SUDO apt-get install --yes --no-install-recommends librealsense2-dkms librealsense2-udev-rules librealsense2-dev
+        $SUDO apt-get install --yes --no-install-recommends librealsense2-utils
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        brew install librealsense
+    else
+        echo "Unsupported OS $OSTYPE"
+        exit 1
+    fi
+}
+
+install_azure_kinect_dependencies() {
+
+    echo "Installing Azure Kinect dependencies"
+
+    SUDO=${SUDO:-sudo}
+    curl https://packages.microsoft.com/keys/microsoft.asc | $SUDO apt-key add -
+    $SUDO apt-add-repository --yes https://packages.microsoft.com/ubuntu/18.04/prod
+
+    # Accept EULA using a workaround
+    # https://github.com/microsoft/Azure-Kinect-Sensor-SDK/issues/1190#issuecomment-618473882
+    echo 'libk4a1.4 libk4a1.4/accepted-eula-hash string 0f5d5c5de396e4fee4c0753a21fee0c1ed726cf0316204edda484f08cb266d76' | $SUDO debconf-set-selections
+    echo 'libk4a1.4 libk4a1.4/accept-eula boolean true' | $SUDO debconf-set-selections
+
+    $SUDO apt-get --yes install libk4a1.4 libk4a1.4-dev k4a-tools
+}
+
 build_all() {
 
     mkdir -p build
@@ -161,6 +208,7 @@ build_all() {
 
     cmakeOptions=(-DBUILD_SHARED_LIBS="$SHARED"
         -DCMAKE_BUILD_TYPE=Release
+        -DBUILD_LIBREALSENSE=ON
         -DBUILD_CUDA_MODULE="$BUILD_CUDA_MODULE"
         -DCUDA_ARCH=BasicPTX
         -DBUILD_TENSORFLOW_OPS="$BUILD_TENSORFLOW_OPS"
@@ -208,6 +256,13 @@ build_pip_conda_package() {
     else
         echo "Building for a new Open3D release"
     fi
+    if [[ "build_azure_kinect" =~ ^($options)$ ]]; then
+        echo "Azure Kinect enabled in Python wheel."
+        BUILD_AZURE_KINECT=ON
+    else
+        echo "Azure Kinect disabled in Python wheel."
+        BUILD_AZURE_KINECT=OFF
+    fi
     set -u
 
     echo
@@ -216,6 +271,8 @@ build_pip_conda_package() {
     cd build # PWD=Open3D/build
     cmakeOptions=(-DBUILD_SHARED_LIBS=OFF
         -DDEVELOPER_BUILD="$DEVELOPER_BUILD"
+        -DBUILD_AZURE_KINECT="$BUILD_AZURE_KINECT"
+        -DBUILD_LIBREALSENSE=ON
         -DBUILD_TENSORFLOW_OPS=ON
         -DBUILD_PYTORCH_OPS=ON
         -DBUILD_RPC_INTERFACE=ON
@@ -336,4 +393,103 @@ test_cpp_example() {
         ./TestVisualizer
     fi
     cd ../../../../build
+}
+
+# Install dependencies needed for building documentation (on Ubuntu 18.04)
+# Usage: install_docs_dependencies "${OPEN3D_ML_ROOT}"
+install_docs_dependencies() {
+    echo
+    echo Install ubuntu dependencies
+    echo Update cmake needed in Ubuntu 18.04
+    sudo apt-key adv --fetch-keys https://apt.kitware.com/keys/kitware-archive-latest.asc
+    sudo apt-add-repository --yes 'deb https://apt.kitware.com/ubuntu/ bionic main'
+    ./util/install_deps_ubuntu.sh assume-yes
+    sudo apt-get install --yes cmake
+    sudo apt-get install --yes doxygen
+    sudo apt-get install --yes texlive
+    sudo apt-get install --yes texlive-latex-extra
+    sudo apt-get install --yes ghostscript
+    sudo apt-get install --yes pandoc
+    sudo apt-get install --yes ccache
+    echo
+    echo Install Python dependencies for building docs
+    which python
+    python -V
+    python -m pip install -U -q "wheel==$WHEEL_VER" "Pillow==$PILLOW_VER" \
+        "sphinx==$SPHINX_VER" "sphinx-rtd-theme==$SPHINX_RTD_VER" "nbsphinx==$NBSPHINX_VER"
+    # m2r needs a patch for sphinx 3
+    # https://github.com/sphinx-doc/sphinx/issues/7420
+    python -m pip install -U -q "git+https://github.com/intel-isl/m2r@dev#egg=m2r"
+    python -m pip install -U -q "yapf==$YAPF_VER"
+    echo
+    if [[ -d "$1" ]]; then
+        OPEN3D_ML_ROOT="$1"
+        echo Installing Open3D-ML dependencies from "${OPEN3D_ML_ROOT}"
+        python -m pip install -r "${OPEN3D_ML_ROOT}/requirements.txt"
+        python -m pip install -r "${OPEN3D_ML_ROOT}/requirements-torch.txt"
+        python -m pip install -r "${OPEN3D_ML_ROOT}/requirements-tensorflow.txt"
+    else
+        echo OPEN3D_ML_ROOT="$OPEN3D_ML_ROOT" not specified or invalid. Skipping ML dependencies.
+    fi
+}
+
+# Build documentation
+# Usage: build_docs $DEVELOPER_BUILD
+build_docs() {
+    NPROC=$(nproc)
+    echo NPROC="$NPROC"
+    mkdir build
+    cd build
+    set +u
+    DEVELOPER_BUILD="$1"
+    set -u
+    if [[ "$DEVELOPER_BUILD" != "OFF" ]]; then # Validate input coming from GHA input field
+        DEVELOPER_BUILD=ON
+        DOC_ARGS=""
+    else
+        DOC_ARGS="--is_release"
+        echo "Building docs for a new Open3D release"
+        echo
+        echo "Building Open3D with ENABLE_HEADLESS_RENDERING=ON for Jupyter notebooks"
+        echo
+    fi
+    cmakeOptions=(-DDEVELOPER_BUILD="$DEVELOPER_BUILD"
+        -DCMAKE_BUILD_TYPE=Release
+        -DBUILD_JUPYTER_EXTENSION=ON
+        -DWITH_OPENMP=ON
+        -DBUILD_AZURE_KINECT=ON
+        -DBUILD_LIBREALSENSE=ON
+        -DBUILD_TENSORFLOW_OPS=ON
+        -DBUILD_PYTORCH_OPS=ON
+        -DBUILD_RPC_INTERFACE=ON
+        -DBUNDLE_OPEN3D_ML=ON
+    )
+    set -x # Echo commands on
+    cmake "${cmakeOptions[@]}" \
+        -DENABLE_HEADLESS_RENDERING=ON \
+        -DBUILD_GUI=OFF \
+        ..
+    make install-pip-package -j$NPROC
+    make -j$NPROC
+    bin/GLInfo
+    python -c "from open3d import *; import open3d; print(open3d)"
+    cd ../docs # To Open3D/docs
+    python make_docs.py $DOC_ARGS --clean_notebooks --execute_notebooks=always --pyapi_rst=never
+    cd ../build
+    set +x # Echo commands off
+    echo
+    echo "Building Open3D with BUILD_GUI=ON for visualization.{gui,rendering} documentation"
+    echo
+    set -x # Echo commands on
+    cmake "${cmakeOptions[@]}" \
+        -DENABLE_HEADLESS_RENDERING=OFF \
+        -DBUILD_GUI=ON \
+        ..
+    make install-pip-package -j$NPROC
+    make -j$NPROC
+    bin/GLInfo || true # Expect failure since HEADLESS_RENDERING=OFF
+    python -c "from open3d import *; import open3d; print(open3d)"
+    cd ../docs # To Open3D/docs
+    python make_docs.py $DOC_ARGS --pyapi_rst=always --execute_notebooks=never --sphinx --doxygen
+    set +x # Echo commands off
 }

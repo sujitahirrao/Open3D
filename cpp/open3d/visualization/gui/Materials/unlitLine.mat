@@ -1,0 +1,49 @@
+// Shader for rendering lines with width
+//
+material {
+    name : unlitLine,
+    shadingModel : unlit,
+    depthWrite : true,
+    depthCulling : true,
+    doubleSided : true,
+    vertexDomain: world,
+
+    parameters : [
+        { type : float3,    name : baseColor },
+        { type : float,     name : lineWidth }
+    ],
+    requires: [
+        color, custom0
+    ]
+}
+
+vertex {
+    void materialVertex(inout MaterialVertexInputs material) {
+        float4 pos = getPosition();
+        float4 next = getCustom0();
+        float4 resolution = getResolution();
+        float2 aspect = float2(resolution.x / resolution.y, 1.0);
+
+        // Project current vertex and next vertex to screen
+        float4 projected_pos = getClipFromWorldMatrix() * float4(pos.xyz - getWorldOffset(), 1.0);
+        float4 projected_next = getClipFromWorldMatrix() * float4(next.xyz - getWorldOffset(), 1.0);
+        float2 screen_pos = (projected_pos.xy / projected_pos.w) * aspect;
+        float2 screen_next = (projected_next.xy / projected_next.w) * aspect;
+
+        // now compute offset
+        float2 dir = normalize(screen_next - screen_pos);
+        float2 normal = float2(-dir.y, dir.x);
+        normal *= materialParams.lineWidth * resolution.z;
+        normal.x /= aspect.x;
+        float4 offset = float4(normal * next.w, 0.0, 0.0);
+        material.worldPosition = getWorldFromClipMatrix() * (projected_pos + offset);
+    }
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+
+        material.baseColor.rgb = materialParams.baseColor*getColor().rgb;
+}
+}
