@@ -3,7 +3,7 @@
 // ----------------------------------------------------------------------------
 // The MIT License (MIT)
 //
-// Copyright (c) 2018 www.open3d.org
+// Copyright (c) 2018-2021 www.open3d.org
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -68,6 +68,8 @@ public:
                int64_t count) override;
 
     int64_t GetActiveIndices(addr_t* output_indices) override;
+
+    void Clear() override;
 
     int64_t Size() const override;
     int64_t GetBucketCount() const override;
@@ -185,6 +187,12 @@ int64_t TBBHashmap<Key, Hash>::GetActiveIndices(addr_t* output_indices) {
     }
 
     return count;
+}
+
+template <typename Key, typename Hash>
+void TBBHashmap<Key, Hash>::Clear() {
+    impl_->clear();
+    buffer_ctx_->Reset();
 }
 
 template <typename Key, typename Hash>

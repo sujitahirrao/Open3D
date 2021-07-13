@@ -3,7 +3,7 @@
 # ----------------------------------------------------------------------------
 # The MIT License (MIT)
 #
-# Copyright (c) 2020 www.open3d.org
+# Copyright (c) 2018-2021 www.open3d.org
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -36,6 +36,8 @@ from open3d_test import list_devices
 np.random.seed(0)
 
 
+@pytest.mark.skipif(not o3d._build_config['WITH_FAISS'],
+                    reason="Need FAISS for nearest neighbors.")
 @pytest.mark.parametrize("device", list_devices())
 def test_knn_index(device):
     dtype = o3c.Dtype.Float32
@@ -51,6 +53,8 @@ def test_knn_index(device):
         assert nns.multi_radius_index()
 
 
+@pytest.mark.skipif(not o3d._build_config['WITH_FAISS'],
+                    reason="Need FAISS for nearest neighbors.")
 @pytest.mark.parametrize("device", list_devices())
 def test_knn_search(device):
     dtype = o3c.Dtype.Float32
@@ -160,10 +164,11 @@ def test_hybrid_search_random(dtype):
             query_points_cuda = query_points.cuda()
 
             nns.hybrid_index(radius)
-            indices, distances = nns.hybrid_search(query_points, radius, k)
+            indices, distances, counts = nns.hybrid_search(
+                query_points, radius, k)
 
             nns_cuda.hybrid_index(radius)
-            indices_cuda, distances_cuda = nns_cuda.hybrid_search(
+            indices_cuda, distances_cuda, counts_cuda = nns_cuda.hybrid_search(
                 query_points_cuda, radius, k)
 
             np.testing.assert_allclose(distances.numpy(),
@@ -171,6 +176,7 @@ def test_hybrid_search_random(dtype):
                                        rtol=1e-5,
                                        atol=0)
             np.testing.assert_equal(indices.numpy(), indices_cuda.cpu().numpy())
+            np.testing.assert_equal(counts.numpy(), counts_cuda.cpu().numpy())
 
 
 @pytest.mark.parametrize("dtype", [o3c.Dtype.Float32, o3c.Dtype.Float64])

@@ -3,7 +3,7 @@
 // ----------------------------------------------------------------------------
 // The MIT License (MIT)
 //
-// Copyright (c) 2018 www.open3d.org
+// Copyright (c) 2018-2021 www.open3d.org
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -37,12 +37,6 @@ class TriangleMeshPermuteDevices : public PermuteDevices {};
 INSTANTIATE_TEST_SUITE_P(TriangleMesh,
                          TriangleMeshPermuteDevices,
                          testing::ValuesIn(PermuteDevices::TestCases()));
-
-class TriangleMeshPermuteDevicePairs : public PermuteDevicePairs {};
-INSTANTIATE_TEST_SUITE_P(
-        TriangleMesh,
-        TriangleMeshPermuteDevicePairs,
-        testing::ValuesIn(TriangleMeshPermuteDevicePairs::TestCases()));
 
 TEST_P(TriangleMeshPermuteDevices, DefaultConstructor) {
     t::geometry::TriangleMesh mesh;
@@ -160,6 +154,38 @@ TEST_P(TriangleMeshPermuteDevices, Setters) {
         EXPECT_ANY_THROW(mesh.SetVertexColors(cpu_colors));
         EXPECT_ANY_THROW(mesh.SetVertexAttr("labels", cpu_labels));
     }
+}
+
+TEST_P(TriangleMeshPermuteDevices, RemoveAttr) {
+    core::Device device = GetParam();
+
+    core::Tensor vertices =
+            core::Tensor::Ones({2, 3}, core::Dtype::Float32, device);
+    core::Tensor vertex_labels =
+            core::Tensor::Ones({2, 3}, core::Dtype::Float32, device) * 3;
+
+    core::Tensor triangles =
+            core::Tensor::Ones({2, 3}, core::Dtype::Int64, device);
+    core::Tensor triangle_labels =
+            core::Tensor::Ones({2, 3}, core::Dtype::Float32, device) * 3;
+
+    t::geometry::TriangleMesh mesh(vertices, triangles);
+
+    mesh.SetVertexAttr("labels", vertex_labels);
+
+    EXPECT_NO_THROW(mesh.GetVertexAttr("labels"));
+    mesh.RemoveVertexAttr("labels");
+    EXPECT_ANY_THROW(mesh.GetVertexAttr("labels"));
+
+    mesh.SetTriangleAttr("labels", triangle_labels);
+
+    EXPECT_NO_THROW(mesh.GetTriangleAttr("labels"));
+    mesh.RemoveTriangleAttr("labels");
+    EXPECT_ANY_THROW(mesh.GetTriangleAttr("labels"));
+
+    // Not allowed to delete primary key attribute.
+    EXPECT_ANY_THROW(mesh.RemoveVertexAttr("vertices"));
+    EXPECT_ANY_THROW(mesh.RemoveTriangleAttr("triangles"));
 }
 
 TEST_P(TriangleMeshPermuteDevices, Has) {

@@ -3,7 +3,7 @@
 // ----------------------------------------------------------------------------
 // The MIT License (MIT)
 //
-// Copyright (c) 2021 www.open3d.org
+// Copyright (c) 2018-2021 www.open3d.org
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -170,7 +170,7 @@ void UIImage::SetScaling(Scaling scaling) { impl_->scaling_ = scaling; }
 
 UIImage::Scaling UIImage::GetScaling() const { return impl_->scaling_; }
 
-Size UIImage::CalcPreferredSize(const Theme& theme,
+Size UIImage::CalcPreferredSize(const LayoutContext& context,
                                 const Widget::Constraints& constraints) const {
     if (impl_->image_width_ != 0.0f && impl_->image_height_ != 0.0f) {
         if (impl_->scaling_ == Scaling::ASPECT &&

@@ -3,7 +3,7 @@
 // ----------------------------------------------------------------------------
 // The MIT License (MIT)
 //
-// Copyright (c) 2018 www.open3d.org
+// Copyright (c) 2018-2021 www.open3d.org
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -40,7 +40,8 @@ namespace kernel {
 /// \param target_normals target normals indexed according to correspondences.
 /// \param correspondences CorrespondenceSet. [refer to definition in
 /// `/cpp/open3d/t/pipelines/registration/TransformationEstimation.h`].
-/// \return Pose [X Y Z alpha beta gamma], a shape {6} tensor of dtype Float32.
+/// \return Pose [alpha beta gamma, tx, ty, tz], a shape {6} tensor of dtype
+/// Float32, where alpha, beta, gamma are the Euler angles in the ZYX order.
 core::Tensor ComputePosePointToPlane(
         const core::Tensor &source_points,
         const core::Tensor &target_points,

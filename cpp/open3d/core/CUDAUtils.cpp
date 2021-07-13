@@ -3,7 +3,7 @@
 // ----------------------------------------------------------------------------
 // The MIT License (MIT)
 //
-// Copyright (c) 2018 www.open3d.org
+// Copyright (c) 2018-2021 www.open3d.org
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,8 @@
 
 #include "open3d/core/CUDAUtils.h"
 
-#include "open3d/utility/Console.h"
+#include "open3d/Macro.h"
+#include "open3d/utility/Logging.h"
 
 #ifdef BUILD_CUDA_MODULE
 #include "open3d/core/CUDAState.cuh"
@@ -72,6 +73,6 @@ void ReleaseCache() {
 }  // namespace open3d
 
 // C interface to provide un-mangled function to Python ctypes
-extern "C" int open3d_core_cuda_device_count() {
+extern "C" OPEN3D_DLL_EXPORT int open3d_core_cuda_device_count() {
     return open3d::core::cuda::DeviceCount();
 }

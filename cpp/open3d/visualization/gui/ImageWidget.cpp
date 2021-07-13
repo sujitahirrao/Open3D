@@ -3,7 +3,7 @@
 // ----------------------------------------------------------------------------
 // The MIT License (MIT)
 //
-// Copyright (c) 2021 www.open3d.org
+// Copyright (c) 2018-2021 www.open3d.org
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -92,21 +92,23 @@ void ImageWidget::SetUIImage(std::shared_ptr<UIImage> image) {
     impl_->image_ = image;
 }
 
-Size ImageWidget::CalcPreferredSize(const Theme& theme,
+Size ImageWidget::CalcPreferredSize(const LayoutContext& context,
                                     const Constraints& constraints) const {
     Size pref;
     if (impl_->image_) {
-        pref = impl_->image_->CalcPreferredSize(theme, constraints);
+        pref = impl_->image_->CalcPreferredSize(context, constraints);
     }
 
     if (pref.width != 0 && pref.height != 0) {
         return pref;
     } else {
-        return Size(5 * theme.font_size, 5 * theme.font_size);
+        return Size(5 * context.theme.font_size, 5 * context.theme.font_size);
     }
 }
 
-void ImageWidget::Layout(const Theme& theme) { Super::Layout(theme); }
+void ImageWidget::Layout(const LayoutContext& context) {
+    Super::Layout(context);
+}
 
 Widget::DrawResult ImageWidget::Draw(const DrawContext& context) {
     auto& frame = GetFrame();
@@ -118,13 +120,16 @@ Widget::DrawResult ImageWidget::Draw(const DrawContext& context) {
     if (params.texture != visualization::rendering::TextureHandle::kBad) {
         ImTextureID image_id =
                 reinterpret_cast<ImTextureID>(params.texture.GetId());
-        ImGui::SetCursorScreenPos(ImVec2(params.pos_x, params.pos_y));
+        ImGui::SetCursorScreenPos(
+                ImVec2(params.pos_x, params.pos_y - ImGui::GetScrollY()));
         ImGui::Image(image_id, ImVec2(params.width, params.height),
                      ImVec2(params.u0, params.v0),
                      ImVec2(params.u1, params.v1));
     } else {
         // Draw error message if we don't have an image, instead of
         // quietly failing or something.
+        Rect frame = GetFrame();         // hide reference with a copy...
+        frame.y -= ImGui::GetScrollY();  // ... so we can adjust for scrolling
         const char* error_text = "  Error\nloading\n image";
         Color fg(1.0, 1.0, 1.0);
         ImGui::GetWindowDrawList()->AddRectFilled(
@@ -154,6 +159,7 @@ Widget::DrawResult ImageWidget::Draw(const DrawContext& context) {
 
         ImGui::PopStyleColor();
     }
+    DrawImGuiTooltip();
 
     if (params.image_size_changed) {
         return Widget::DrawResult::RELAYOUT;
