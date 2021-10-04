@@ -32,14 +32,14 @@ import pytest
 # test intersection with a single triangle
 def test_cast_rays():
     vertices = o3d.core.Tensor([[0, 0, 0], [1, 0, 0], [1, 1, 0]],
-                               dtype=o3d.core.Dtype.Float32)
-    triangles = o3d.core.Tensor([[0, 1, 2]], dtype=o3d.core.Dtype.UInt32)
+                               dtype=o3d.core.float32)
+    triangles = o3d.core.Tensor([[0, 1, 2]], dtype=o3d.core.uint32)
 
     scene = o3d.t.geometry.RaycastingScene()
     geom_id = scene.add_triangles(vertices, triangles)
 
     rays = o3d.core.Tensor([[0.2, 0.1, 1, 0, 0, -1], [10, 10, 10, 1, 0, 0]],
-                           dtype=o3d.core.Dtype.Float32)
+                           dtype=o3d.core.float32)
     ans = scene.cast_rays(rays)
 
     # first ray hits the triangle
@@ -55,8 +55,8 @@ def test_cast_rays():
 # we expect no errors for this test
 def test_cast_lots_of_rays():
     vertices = o3d.core.Tensor([[0, 0, 0], [1, 0, 0], [1, 1, 0]],
-                               dtype=o3d.core.Dtype.Float32)
-    triangles = o3d.core.Tensor([[0, 1, 2]], dtype=o3d.core.Dtype.UInt32)
+                               dtype=o3d.core.float32)
+    triangles = o3d.core.Tensor([[0, 1, 2]], dtype=o3d.core.uint32)
 
     scene = o3d.t.geometry.RaycastingScene()
     scene.add_triangles(vertices, triangles)
@@ -67,8 +67,52 @@ def test_cast_lots_of_rays():
     _ = scene.cast_rays(rays)
 
 
+# test occlusion with a single triangle
+def test_test_occlusions():
+    vertices = o3d.core.Tensor([[0, 0, 0], [1, 0, 0], [1, 1, 0]],
+                               dtype=o3d.core.float32)
+    triangles = o3d.core.Tensor([[0, 1, 2]], dtype=o3d.core.uint32)
+
+    scene = o3d.t.geometry.RaycastingScene()
+    scene.add_triangles(vertices, triangles)
+
+    rays = o3d.core.Tensor([[0.2, 0.1, 1, 0, 0, -1], [10, 10, 10, 1, 0, 0]],
+                           dtype=o3d.core.float32)
+    ans = scene.test_occlusions(rays)
+
+    # first ray is occluded by the triangle
+    assert ans[0] == True
+
+    # second ray is not occluded
+    assert ans[1] == False
+
+    # set tfar such that no ray is occluded
+    ans = scene.test_occlusions(rays, tfar=0.5)
+    assert ans.any() == False
+
+    # set tnear such that no ray is occluded
+    ans = scene.test_occlusions(rays, tnear=1.5)
+    assert ans.any() == False
+
+
+# test lots of random rays for occlusions to test the internal batching
+# we expect no errors for this test
+def test_test_lots_of_occlusions():
+    vertices = o3d.core.Tensor([[0, 0, 0], [1, 0, 0], [1, 1, 0]],
+                               dtype=o3d.core.float32)
+    triangles = o3d.core.Tensor([[0, 1, 2]], dtype=o3d.core.uint32)
+
+    scene = o3d.t.geometry.RaycastingScene()
+    scene.add_triangles(vertices, triangles)
+
+    rs = np.random.RandomState(123)
+    rays = o3d.core.Tensor.from_numpy(rs.rand(7654321, 6).astype(np.float32))
+
+    _ = scene.test_occlusions(rays)
+
+
 def test_add_triangle_mesh():
-    cube = o3d.t.geometry.TriangleMesh.from_legacy_triangle_mesh(
+    cube = o3d.t.geometry.TriangleMesh.from_legacy(
         o3d.geometry.TriangleMesh.create_box())
 
     scene = o3d.t.geometry.RaycastingScene()
@@ -76,14 +120,14 @@ def test_add_triangle_mesh():
 
     rays = o3d.core.Tensor([[0.5, 0.5, -1, 0, 0, 1], [0.5, 0.5, 0.5, 0, 0, 1],
                             [10, 10, 10, 1, 0, 0]],
-                           dtype=o3d.core.Dtype.Float32)
+                           dtype=o3d.core.float32)
     ans = scene.count_intersections(rays)
 
     np.testing.assert_equal(ans.numpy(), [2, 1, 0])
 
 
 def test_count_intersections():
-    cube = o3d.t.geometry.TriangleMesh.from_legacy_triangle_mesh(
+    cube = o3d.t.geometry.TriangleMesh.from_legacy(
         o3d.geometry.TriangleMesh.create_box())
 
     scene = o3d.t.geometry.RaycastingScene()
@@ -91,7 +135,7 @@ def test_count_intersections():
 
     rays = o3d.core.Tensor([[0.5, 0.5, -1, 0, 0, 1], [0.5, 0.5, 0.5, 0, 0, 1],
                             [10, 10, 10, 1, 0, 0]],
-                           dtype=o3d.core.Dtype.Float32)
+                           dtype=o3d.core.float32)
     ans = scene.count_intersections(rays)
 
     np.testing.assert_equal(ans.numpy(), [2, 1, 0])
@@ -100,7 +144,7 @@ def test_count_intersections():
 # count lots of random ray intersections to test the internal batching
 # we expect no errors for this test
 def test_count_lots_of_intersections():
-    cube = o3d.t.geometry.TriangleMesh.from_legacy_triangle_mesh(
+    cube = o3d.t.geometry.TriangleMesh.from_legacy(
         o3d.geometry.TriangleMesh.create_box())
 
     scene = o3d.t.geometry.RaycastingScene()
@@ -114,14 +158,14 @@ def test_count_lots_of_intersections():
 
 def test_compute_closest_points():
     vertices = o3d.core.Tensor([[0, 0, 0], [1, 0, 0], [1, 1, 0]],
-                               dtype=o3d.core.Dtype.Float32)
-    triangles = o3d.core.Tensor([[0, 1, 2]], dtype=o3d.core.Dtype.UInt32)
+                               dtype=o3d.core.float32)
+    triangles = o3d.core.Tensor([[0, 1, 2]], dtype=o3d.core.uint32)
 
     scene = o3d.t.geometry.RaycastingScene()
     geom_id = scene.add_triangles(vertices, triangles)
 
     query_points = o3d.core.Tensor([[0.2, 0.1, 1], [10, 10, 10]],
-                                   dtype=o3d.core.Dtype.Float32)
+                                   dtype=o3d.core.float32)
     ans = scene.compute_closest_points(query_points)
 
     assert (geom_id == ans['geometry_ids']).all()
@@ -132,8 +176,24 @@ def test_compute_closest_points():
                                atol=1e-6)
 
 
+# compute lots of closest points to test the internal batching
+# we expect no errors for this test
+def test_compute_lots_of_closest_points():
+    vertices = o3d.core.Tensor([[0, 0, 0], [1, 0, 0], [1, 1, 0]],
+                               dtype=o3d.core.float32)
+    triangles = o3d.core.Tensor([[0, 1, 2]], dtype=o3d.core.uint32)
+
+    scene = o3d.t.geometry.RaycastingScene()
+    scene.add_triangles(vertices, triangles)
+
+    rs = np.random.RandomState(123)
+    query_points = o3d.core.Tensor.from_numpy(
+        rs.rand(1234567, 3).astype(np.float32))
+    _ = scene.compute_closest_points(query_points)
+
+
 def test_compute_distance():
-    cube = o3d.t.geometry.TriangleMesh.from_legacy_triangle_mesh(
+    cube = o3d.t.geometry.TriangleMesh.from_legacy(
         o3d.geometry.TriangleMesh.create_box())
 
     scene = o3d.t.geometry.RaycastingScene()
@@ -141,13 +201,13 @@ def test_compute_distance():
 
     query_points = o3d.core.Tensor(
         [[0.5, 0.5, 0.5], [-0.5, -0.5, -0.5], [0, 0, 0]],
-        dtype=o3d.core.Dtype.Float32)
+        dtype=o3d.core.float32)
     ans = scene.compute_distance(query_points)
     np.testing.assert_allclose(ans.numpy(), [0.5, np.sqrt(3 * 0.5**2), 0.0])
 
 
 def test_compute_signed_distance():
-    cube = o3d.t.geometry.TriangleMesh.from_legacy_triangle_mesh(
+    cube = o3d.t.geometry.TriangleMesh.from_legacy(
         o3d.geometry.TriangleMesh.create_box())
 
     scene = o3d.t.geometry.RaycastingScene()
@@ -155,20 +215,20 @@ def test_compute_signed_distance():
 
     query_points = o3d.core.Tensor(
         [[0.5, 0.5, 0.5], [-0.5, -0.5, -0.5], [0, 0, 0]],
-        dtype=o3d.core.Dtype.Float32)
+        dtype=o3d.core.float32)
     ans = scene.compute_signed_distance(query_points)
     np.testing.assert_allclose(ans.numpy(), [-0.5, np.sqrt(3 * 0.5**2), 0.0])
 
 
 def test_compute_occupancy():
-    cube = o3d.t.geometry.TriangleMesh.from_legacy_triangle_mesh(
+    cube = o3d.t.geometry.TriangleMesh.from_legacy(
         o3d.geometry.TriangleMesh.create_box())
 
     scene = o3d.t.geometry.RaycastingScene()
     scene.add_triangles(cube)
 
     query_points = o3d.core.Tensor([[0.5, 0.5, 0.5], [-0.5, -0.5, -0.5]],
-                                   dtype=o3d.core.Dtype.Float32)
+                                   dtype=o3d.core.float32)
     ans = scene.compute_occupancy(query_points)
     np.testing.assert_allclose(ans.numpy(), [1.0, 0.0])
 
@@ -176,8 +236,8 @@ def test_compute_occupancy():
 @pytest.mark.parametrize("shape", ([11], [1, 2, 3], [32, 14]))
 def test_output_shapes(shape):
     vertices = o3d.core.Tensor([[0, 0, 0], [1, 0, 0], [1, 1, 0]],
-                               dtype=o3d.core.Dtype.Float32)
-    triangles = o3d.core.Tensor([[0, 1, 2]], dtype=o3d.core.Dtype.UInt32)
+                               dtype=o3d.core.float32)
+    triangles = o3d.core.Tensor([[0, 1, 2]], dtype=o3d.core.uint32)
 
     scene = o3d.t.geometry.RaycastingScene()
     scene.add_triangles(vertices, triangles)

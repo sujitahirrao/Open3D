@@ -87,7 +87,7 @@ public:
     /// \param transformation The estimated transformation matrix of dtype
     /// Float64 on CPU device.
     RegistrationResult(const core::Tensor &transformation = core::Tensor::Eye(
-                               4, core::Dtype::Float64, core::Device("CPU:0")))
+                               4, core::Float64, core::Device("CPU:0")))
         : transformation_(transformation), inlier_rmse_(0.0), fitness_(0.0) {}
 
     ~RegistrationResult() {}
@@ -100,9 +100,10 @@ public:
 public:
     /// The estimated transformation matrix of dtype Float64 on CPU device.
     core::Tensor transformation_;
-    /// Correspondence Set. Refer to the definition in
-    /// `TransformationEstimation.h`.
-    CorrespondenceSet correspondence_set_;
+    /// Tensor containing indices of corresponding target points, where the
+    /// value is the target index and the index of the value itself is the
+    /// source index. It contains -1 as value at index with no correspondence.
+    core::Tensor correspondences_;
     /// RMSE of all inlier correspondences. Lower is better.
     double inlier_rmse_;
     /// For ICP: the overlapping area (# of inlier correspondences / # of points
@@ -112,8 +113,8 @@ public:
 
 /// \brief Function for evaluating registration between point clouds.
 ///
-/// \param source The source point cloud.
-/// \param target The target point cloud.
+/// \param source The source point cloud. (Float32 or Float64 type).
+/// \param target The target point cloud. (Float32 or Float64 type).
 /// \param max_correspondence_distance Maximum correspondence points-pair
 /// distance.
 /// \param transformation The 4x4 transformation matrix to transform
@@ -122,25 +123,25 @@ RegistrationResult EvaluateRegistration(
         const geometry::PointCloud &source,
         const geometry::PointCloud &target,
         double max_correspondence_distance,
-        const core::Tensor &transformation = core::Tensor::Eye(
-                4, core::Dtype::Float64, core::Device("CPU:0")));
+        const core::Tensor &transformation =
+                core::Tensor::Eye(4, core::Float64, core::Device("CPU:0")));
 
 /// \brief Functions for ICP registration.
 ///
-/// \param source The source point cloud.
-/// \param target The target point cloud.
+/// \param source The source point cloud. (Float32 or Float64 type).
+/// \param target The target point cloud. (Float32 or Float64 type).
 /// \param max_correspondence_distance Maximum correspondence points-pair
 /// distance.
 /// \param init_source_to_target Initial transformation estimation of type
 /// Float64 on CPU.
 /// \param estimation Estimation method.
 /// \param criteria Convergence criteria.
-RegistrationResult RegistrationICP(
+RegistrationResult ICP(
         const geometry::PointCloud &source,
         const geometry::PointCloud &target,
         double max_correspondence_distance,
-        const core::Tensor &init_source_to_target = core::Tensor::Eye(
-                4, core::Dtype::Float64, core::Device("CPU:0")),
+        const core::Tensor &init_source_to_target =
+                core::Tensor::Eye(4, core::Float64, core::Device("CPU:0")),
         const TransformationEstimation &estimation =
                 TransformationEstimationPointToPoint(),
         const ICPConvergenceCriteria &criteria = ICPConvergenceCriteria());
@@ -155,8 +156,8 @@ RegistrationResult RegistrationICP(
 /// higher is the resolution]. Only the last value of the voxel_sizes vector can
 /// be {-1}, as it allows to run on the original scale without downsampling.
 ///
-/// \param source The source point cloud.
-/// \param target The target point cloud.
+/// \param source The source point cloud. (Float32 or Float64 type).
+/// \param target The target point cloud. (Float32 or Float64 type).
 /// \param voxel_sizes VectorDouble of voxel scales of type double.
 /// \param criteria_list Vector of ICPConvergenceCriteria objects for each
 /// scale.
@@ -166,16 +167,31 @@ RegistrationResult RegistrationICP(
 /// \param init_source_to_target Initial transformation estimation of type
 /// Float64 on CPU.
 /// \param estimation Estimation method.
-RegistrationResult RegistrationMultiScaleICP(
+RegistrationResult MultiScaleICP(
         const geometry::PointCloud &source,
         const geometry::PointCloud &target,
         const std::vector<double> &voxel_sizes,
         const std::vector<ICPConvergenceCriteria> &criteria_list,
         const std::vector<double> &max_correspondence_distances,
-        const core::Tensor &init_source_to_target = core::Tensor::Eye(
-                4, core::Dtype::Float64, core::Device("CPU:0")),
+        const core::Tensor &init_source_to_target =
+                core::Tensor::Eye(4, core::Float64, core::Device("CPU:0")),
         const TransformationEstimation &estimation =
                 TransformationEstimationPointToPoint());
+
+/// \brief Computes `Information Matrix`, from the transfromation between source
+/// and target pointcloud. It returns the `Information Matrix` of shape {6, 6},
+/// of dtype `Float64` on device `CPU:0`.
+///
+/// \param source The source point cloud. (Float32 or Float64 type).
+/// \param target The target point cloud. (Float32 or Float64 type).
+/// \param max_correspondence_distance Maximum correspondence points-pair
+/// distance.
+/// \param transformation The 4x4 transformation matrix to transform
+/// `source` to `target`.
+core::Tensor GetInformationMatrix(const geometry::PointCloud &source,
+                                  const geometry::PointCloud &target,
+                                  const double max_correspondence_distance,
+                                  const core::Tensor &transformation);
 
 }  // namespace registration
 }  // namespace pipelines

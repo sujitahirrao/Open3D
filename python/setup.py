@@ -27,6 +27,7 @@
 from setuptools import setup, find_packages
 from setuptools.command.install import install as _install
 import os
+import sys
 import glob
 import ctypes
 
@@ -123,6 +124,14 @@ if '@BUNDLE_OPEN3D_ML@' == 'ON':
     with open('@OPEN3D_ML_ROOT@/requirements.txt', 'r') as f:
         install_requires += [line.strip() for line in f.readlines() if line]
 
+entry_points = {}
+if sys.platform != 'darwin':  # Remove check when off main thread GUI works
+    entry_points.update({
+        "tensorboard_plugins": [
+            "Open3D = @PYPI_PACKAGE_NAME@.visualization.tensorboard_plugin"
+            ".plugin:Open3DPlugin",
+        ]
+    })
 setup_args = dict(
     name="@PYPI_PACKAGE_NAME@",
     version='@PROJECT_VERSION@',
@@ -130,6 +139,7 @@ setup_args = dict(
     include_package_data=True,
     install_requires=install_requires,
     packages=find_packages(),
+    entry_points=entry_points,
     zip_safe=False,
     cmdclass=cmdclass,
     author='Open3D Team',
@@ -148,6 +158,7 @@ setup_args = dict(
         "Environment :: MacOS X",
         "Environment :: Win32 (MS Windows)",
         "Environment :: X11 Applications",
+        "Environment :: GPU :: NVIDIA CUDA",
         "Intended Audience :: Developers",
         "Intended Audience :: Education",
         "Intended Audience :: Other Audience",
@@ -155,12 +166,15 @@ setup_args = dict(
         "License :: OSI Approved :: MIT License",
         "Natural Language :: English",
         "Operating System :: POSIX :: Linux",
+        "Operating System :: MacOS :: MacOSX",
+        "Operating System :: Microsoft :: Windows",
         "Programming Language :: C",
         "Programming Language :: C++",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
         "Topic :: Education",
         "Topic :: Multimedia :: Graphics :: 3D Modeling",
         "Topic :: Multimedia :: Graphics :: 3D Rendering",

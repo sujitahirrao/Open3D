@@ -59,11 +59,7 @@ target_sources(open3d_tf_ops PRIVATE
     pointnet/InterpolateOps.cpp
     pointnet/RoiPoolOps.cpp
     pointnet/SamplingOps.cpp
-)
-
-target_sources(open3d_tf_ops PRIVATE
-    tf_neighbors/tf_batch_neighbors.cpp
-    tf_neighbors/tf_neighbors.cpp
+    pvcnn/TrilinearDevoxelizeOps.cpp
 )
 
 target_sources(open3d_tf_ops PRIVATE
@@ -74,7 +70,6 @@ target_sources(open3d_tf_ops PRIVATE
 target_sources(open3d_tf_ops PRIVATE
     ../contrib/Cloud.cpp
     ../contrib/GridSubsampling.cpp
-    ../contrib/neighbors.cpp
     ../contrib/Nms.cpp
 )
 
@@ -107,6 +102,7 @@ if (BUILD_CUDA_MODULE)
         pointnet/InterpolateOpKernel.cu
         pointnet/RoiPoolOpKernel.cu
         pointnet/SamplingOpKernel.cu
+        pvcnn/TrilinearDevoxelizeKernel.cu
     )
 
     target_sources(open3d_tf_ops PRIVATE
@@ -119,6 +115,7 @@ if (BUILD_CUDA_MODULE)
         ../contrib/InterpolatePoints.cu
         ../contrib/Nms.cu
         ../contrib/RoiPoolKernel.cu
+        ../contrib/TrilinearDevoxelize.cu
     )
 endif()
 
@@ -138,14 +135,6 @@ set_target_properties(open3d_tf_ops PROPERTIES
 set_target_properties(open3d_tf_ops PROPERTIES PREFIX "")
 set_target_properties(open3d_tf_ops PROPERTIES DEBUG_POSTFIX "_debug")
 
-# enable c++11
-set_target_properties(open3d_tf_ops PROPERTIES
-        CXX_STANDARD 11
-        CXX_STANDARD_REQUIRED ON
-        CXX_EXTENSIONS OFF
-        CUDA_STANDARD 11
-)
-
 target_compile_definitions(open3d_tf_ops PRIVATE "${Tensorflow_DEFINITIONS}")
 
 if (BUILD_CUDA_MODULE)
@@ -162,22 +151,28 @@ target_include_directories(open3d_tf_ops SYSTEM PRIVATE
 )
 
 target_link_libraries(open3d_tf_ops PRIVATE
-    3rdparty_tbb
     ${Tensorflow_FRAMEWORK_LIB}
-    ${FMT_TARGET}
-    ${NANOFLANN_TARGET}
-    ${PARALLELSTL_TARGET}
     Open3D::Open3D
+    Open3D::3rdparty_fmt
+    Open3D::3rdparty_nanoflann
+    Open3D::3rdparty_parallelstl
+    Open3D::3rdparty_tbb
 )
 
 if (BUILD_CUDA_MODULE)
     target_link_libraries(open3d_tf_ops PRIVATE
-        ${CUTLASS_TARGET}
+        Open3D::3rdparty_cutlass
+        CUDA::cuda_driver
     )
 
-    if (CUB_TARGET)
+    if (TARGET Open3D::3rdparty_cub)
         target_link_libraries(open3d_tf_ops PRIVATE
-            ${CUB_TARGET}
+            Open3D::3rdparty_cub
         )
     endif()
 endif()
+
+install(TARGETS open3d_tf_ops EXPORT Open3DTFOps
+    LIBRARY DESTINATION ${Open3D_INSTALL_LIB_DIR}
+)
+install(EXPORT Open3DTFOps NAMESPACE ${PROJECT_NAME}:: DESTINATION ${Open3D_INSTALL_CMAKE_DIR})

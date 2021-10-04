@@ -30,7 +30,7 @@
 
 #include <algorithm>
 #include <cctype>
-#include <random>
+#include <sstream>
 #include <unordered_set>
 
 #ifdef _WIN32
@@ -56,6 +56,22 @@ std::vector<std::string> SplitString(const std::string& str,
         last_pos = new_pos + 1;
     }
     return tokens;
+}
+
+bool ContainsString(const std::string& src, const std::string& dst) {
+    return src.find(dst) != std::string::npos;
+}
+
+std::string JoinStrings(const std::vector<std::string>& strs,
+                        const std::string& delimiter) {
+    std::ostringstream oss;
+    for (size_t i = 0; i < strs.size(); ++i) {
+        oss << strs[i];
+        if (i != strs.size() - 1) {
+            oss << delimiter;
+        }
+    }
+    return oss.str();
 }
 
 std::string& LeftStripString(std::string& str, const std::string& chars) {
@@ -114,12 +130,6 @@ void Sleep(int milliseconds) {
 #else
     usleep(milliseconds * 1000);
 #endif  // _WIN32
-}
-
-int UniformRandInt(const int min, const int max) {
-    static thread_local std::mt19937 generator(std::random_device{}());
-    std::uniform_int_distribution<int> distribution(min, max);
-    return distribution(generator);
 }
 
 std::string GetCurrentTimeStamp() {

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 # The following environment variables are required:
 SUDO=${SUDO:=sudo}
@@ -13,13 +14,11 @@ if [ -z "${BUILD_CUDA_MODULE:+x}" ]; then
         BUILD_CUDA_MODULE=OFF
     fi
 fi
-BUILD_COMMON_CUDA_ARCHS=${BUILD_COMMON_CUDA_ARCHS:-OFF}
 BUILD_TENSORFLOW_OPS=${BUILD_TENSORFLOW_OPS:-ON}
 BUILD_PYTORCH_OPS=${BUILD_PYTORCH_OPS:-ON}
 if [[ "$OSTYPE" == "linux-gnu"* ]] && [ "$BUILD_CUDA_MODULE" == OFF ]; then
     BUILD_PYTORCH_OPS=OFF # PyTorch Ops requires CUDA + CUDNN to build
 fi
-BUILD_RPC_INTERFACE=${BUILD_RPC_INTERFACE:-ON}
 LOW_MEM_USAGE=${LOW_MEM_USAGE:-OFF}
 
 # Dependency versions:
@@ -40,24 +39,25 @@ else
     GCC_MAX_VER=7
 fi
 # ML
-TENSORFLOW_VER="2.4.1"
-# TORCH_CUDA_GLNX_VER="1.7.1+cu110"
-# TORCH_CPU_GLNX_VER="1.7.1+cpu"
+TENSORFLOW_VER="2.5.0"
+# TORCH_CUDA_GLNX_VER="1.8.1+cu110"
+# TORCH_CPU_GLNX_VER="1.8.1+cpu"
 PYTHON_VER=$(python -c 'import sys; ver=f"{sys.version_info.major}{sys.version_info.minor}"; print(f"cp{ver}-cp{ver}{sys.abiflags}")' 2>/dev/null || true)
-TORCH_CUDA_GLNX_URL="https://github.com/intel-isl/open3d_downloads/releases/download/torch1.7.1/torch-1.7.1-${PYTHON_VER}-linux_x86_64.whl"
-TORCH_MACOS_VER="1.7.1"
+TORCH_CUDA_GLNX_URL="https://github.com/isl-org/open3d_downloads/releases/download/torch1.8.1/torch-1.8.1-${PYTHON_VER}-linux_x86_64.whl"
+TORCH_MACOS_VER="1.8.1"
 # Python
-CONDA_BUILD_VER="3.20.0"
+CONDA_BUILD_VER="3.21.4"
 PIP_VER="21.1.1"
 WHEEL_VER="0.35.1"
 STOOLS_VER="50.3.2"
 PYTEST_VER="6.0.1"
+PYTEST_RANDOMLY_VER="3.8.0"
 SCIPY_VER="1.5.4"
 YAPF_VER="0.30.0"
 
 # Documentation
-SPHINX_VER=3.5.4
-SPHINX_RTD_VER=0.5.1
+SPHINX_VER=3.3.1
+SPHINX_RTD_VER=0.5.2
 NBSPHINX_VER=0.8.3
 MATPLOTLIB_VER=3.3.3
 M2R2_VER=0.2.7
@@ -133,8 +133,8 @@ install_python_dependencies() {
     python -m pip install --upgrade pip=="$PIP_VER" wheel=="$WHEEL_VER" \
         setuptools=="$STOOLS_VER"
     if [[ "with-unit-test" =~ ^($options)$ ]]; then
-        python -m pip install -U pytest=="$PYTEST_VER"
-        python -m pip install -U scipy=="$SCIPY_VER"
+        python -m pip install -U scipy=="$SCIPY_VER" pytest=="$PYTEST_VER" \
+            pytest-randomly=="$PYTEST_RANDOMLY_VER"
     fi
     if [[ "with-cuda" =~ ^($options)$ ]]; then
         TF_ARCH_NAME=tensorflow-gpu
@@ -224,10 +224,10 @@ build_all() {
         -DCMAKE_BUILD_TYPE=Release
         -DBUILD_LIBREALSENSE=ON
         -DBUILD_CUDA_MODULE="$BUILD_CUDA_MODULE"
-        -DBUILD_COMMON_CUDA_ARCHS=OFF
+        -DBUILD_COMMON_CUDA_ARCHS=ON
+        -DBUILD_COMMON_ISPC_ISAS=ON
         -DBUILD_TENSORFLOW_OPS="$BUILD_TENSORFLOW_OPS"
         -DBUILD_PYTORCH_OPS="$BUILD_PYTORCH_OPS"
-        -DBUILD_RPC_INTERFACE="$BUILD_RPC_INTERFACE"
         -DCMAKE_INSTALL_PREFIX="$OPEN3D_INSTALL_DIR"
         -DBUILD_UNIT_TESTS=ON
         -DBUILD_BENCHMARKS=ON
@@ -292,11 +292,11 @@ build_pip_conda_package() {
     pushd build # PWD=Open3D/build
     cmakeOptions=("-DBUILD_SHARED_LIBS=OFF"
         "-DDEVELOPER_BUILD=$DEVELOPER_BUILD"
+        "-DBUILD_COMMON_ISPC_ISAS=ON"
         "-DBUILD_AZURE_KINECT=$BUILD_AZURE_KINECT"
         "-DBUILD_LIBREALSENSE=ON"
         "-DBUILD_TENSORFLOW_OPS=ON"
         "-DBUILD_PYTORCH_OPS=ON"
-        "-DBUILD_RPC_INTERFACE=ON"
         "-DBUILD_FILAMENT_FROM_SOURCE=$BUILD_FILAMENT_FROM_SOURCE"
         "-DBUILD_JUPYTER_EXTENSION=$BUILD_JUPYTER_EXTENSION"
         "-DCMAKE_INSTALL_PREFIX=$OPEN3D_INSTALL_DIR"
@@ -323,7 +323,8 @@ build_pip_conda_package() {
         rm -r "${rebuild_list[@]}" || true
         set -x # Echo commands on
         cmake -DBUILD_CUDA_MODULE=ON \
-            -DBUILD_COMMON_CUDA_ARCHS="${BUILD_COMMON_CUDA_ARCHS}" "${cmakeOptions[@]}" ..
+              -DBUILD_COMMON_CUDA_ARCHS=ON \
+              "${cmakeOptions[@]}" ..
         set +x # Echo commands off
     fi
     echo
@@ -397,8 +398,11 @@ test_wheel() {
 run_python_tests() {
     # shellcheck disable=SC1091
     source open3d_test.venv/bin/activate
-    python -m pip install -U pytest=="$PYTEST_VER"
-    python -m pip install -U scipy=="$SCIPY_VER"
+    python -m pip install -U pytest=="$PYTEST_VER" \
+        pytest-randomly=="$PYTEST_RANDOMLY_VER" \
+        scipy=="$SCIPY_VER" \
+        tensorboard=="$TENSORFLOW_VER"
+    echo Add --rondomly-seed=SEED to the test command to reproduce test order.
     pytest_args=("$OPEN3D_SOURCE_ROOT"/python/test/)
     if [ "$BUILD_PYTORCH_OPS" == "OFF" ] || [ "$BUILD_TENSORFLOW_OPS" == "OFF" ]; then
         echo Testing ML Ops disabled
@@ -410,8 +414,9 @@ run_python_tests() {
 
 # Use: run_unit_tests
 run_cpp_unit_tests() {
-    unitTestFlags=
+    unitTestFlags=--gtest_shuffle
     [ "${LOW_MEM_USAGE-}" = "ON" ] && unitTestFlags="--gtest_filter=-*Reduce*Sum*"
+    echo "Run ./bin/tests $unitTestFlags --gtest_random_seed=SEED to repeat this test sequence."
     ./bin/tests "$unitTestFlags"
     echo
 }
@@ -421,7 +426,7 @@ run_cpp_unit_tests() {
 test_cpp_example() {
     # Now I am in Open3D/build/
     cd ..
-    git clone https://github.com/intel-isl/open3d-cmake-find-package.git
+    git clone https://github.com/isl-org/open3d-cmake-find-package.git
     cd open3d-cmake-find-package
     mkdir build
     cd build
@@ -473,7 +478,8 @@ install_docs_dependencies() {
         echo Installing Open3D-ML dependencies from "${OPEN3D_ML_ROOT}"
         python -m pip install -r "${OPEN3D_ML_ROOT}/requirements.txt"
         python -m pip install -r "${OPEN3D_ML_ROOT}/requirements-torch.txt"
-        python -m pip install -r "${OPEN3D_ML_ROOT}/requirements-tensorflow.txt"
+        python -m pip install -r "${OPEN3D_ML_ROOT}/requirements-tensorflow.txt" ||
+            python -m pip install tensorflow # FIXME: Remove after Open3D-ML update
     else
         echo OPEN3D_ML_ROOT="$OPEN3D_ML_ROOT" not specified or invalid. Skipping ML dependencies.
     fi
@@ -506,7 +512,6 @@ build_docs() {
         "-DBUILD_LIBREALSENSE=ON"
         "-DBUILD_TENSORFLOW_OPS=ON"
         "-DBUILD_PYTORCH_OPS=ON"
-        "-DBUILD_RPC_INTERFACE=ON"
         "-DBUNDLE_OPEN3D_ML=ON"
     )
     set -x # Echo commands on

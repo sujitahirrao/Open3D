@@ -24,17 +24,7 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "open3d/core/Dispatch.h"
-#include "open3d/core/Dtype.h"
-#include "open3d/core/MemoryManager.h"
-#include "open3d/core/SizeVector.h"
-#include "open3d/core/Tensor.h"
-#include "open3d/core/kernel/CPULauncher.h"
-#include "open3d/t/geometry/kernel/GeometryIndexer.h"
-#include "open3d/t/geometry/kernel/GeometryMacros.h"
-#include "open3d/t/geometry/kernel/PointCloud.h"
 #include "open3d/t/geometry/kernel/PointCloudImpl.h"
-#include "open3d/utility/Logging.h"
 
 namespace open3d {
 namespace t {
@@ -67,7 +57,7 @@ void ProjectCPU(
         color_indexer = NDArrayIndexer(image_colors.value().get(), 2);
     }
 
-    core::kernel::cpu_launcher::ParallelFor(n, [&](int64_t workload_idx) {
+    core::ParallelFor(core::Device("CPU:0"), n, [&](int64_t workload_idx) {
         float x = points_ptr[3 * workload_idx + 0];
         float y = points_ptr[3 * workload_idx + 1];
         float z = points_ptr[3 * workload_idx + 2];
@@ -85,6 +75,7 @@ void ProjectCPU(
         float* depth_ptr = depth_indexer.GetDataPtr<float>(
                 static_cast<int64_t>(u), static_cast<int64_t>(v));
         float d = zc * depth_scale;
+        // TODO: this can be wrong if ParallelFor is not implmented with OpenMP.
 #pragma omp critical(ProjectCPU)
         {
             if (*depth_ptr == 0 || *depth_ptr >= d) {
@@ -105,6 +96,7 @@ void ProjectCPU(
         }
     });
 }
+
 }  // namespace pointcloud
 }  // namespace kernel
 }  // namespace geometry

@@ -19,7 +19,6 @@ CI_CONFIG_ID=${CI_CONFIG_ID%%-*} # '3-ML-bionic' -> '3'
 SHARED=(OFF ON OFF ON OFF OFF)
 BUILD_ML_OPS=(OFF ON OFF ON ON ON)
 BUILD_CUDA_MODULE=(OFF OFF ON ON ON ON)
-BUILD_RPC_INTERFACE=(ON ON OFF OFF ON ON)
 UBUNTU_VERSION_LIST=(bionic bionic bionic bionic bionic focal)
 UBUNTU_VERSION=${UBUNTU_VERSION:-${UBUNTU_VERSION_LIST[$CI_CONFIG_ID]}}
 BUILD_TENSORFLOW_OPS=("${BUILD_ML_OPS[@]}")
@@ -42,7 +41,7 @@ GCE_INSTANCE_ZONE=(us-west1-a us-west1-b
 )
 
 GCE_ZID=${GCE_ZID:=0} # Persist between calls of this script
-GCE_GPU="count=1,type=nvidia-tesla-t4"
+GCE_GPU="count=2,type=nvidia-tesla-t4"
 GCE_BOOT_DISK_TYPE=pd-ssd
 GCE_BOOT_DISK_SIZE=64GB
 NVIDIA_DRIVER_VERSION=460 # Must be present in Ubuntu repos 20.04
@@ -140,7 +139,6 @@ run-ci)
             --env NPROC=$NPROC \
             --env SHARED=${SHARED[$CI_CONFIG_ID]} \
             --env BUILD_CUDA_MODULE=${BUILD_CUDA_MODULE[$CI_CONFIG_ID]} \
-            --env BUILD_RPC_INTERFACE=${BUILD_RPC_INTERFACE[$CI_CONFIG_ID]} \
             --env BUILD_TENSORFLOW_OPS=${BUILD_TENSORFLOW_OPS[$CI_CONFIG_ID]} \
             --env BUILD_PYTORCH_OPS=${BUILD_PYTORCH_OPS[$CI_CONFIG_ID]} \
             --env OPEN3D_ML_ROOT=/root/Open3D/Open3D-ML \

@@ -34,28 +34,29 @@
 #include "open3d/geometry/PointCloud.h"
 #include "open3d/io/PointCloudIO.h"
 #include "open3d/pipelines/registration/TransformationEstimation.h"
+#include "open3d/utility/DataManager.h"
 #include "open3d/utility/Logging.h"
-
-// Testing parameters:
-// Filename for pointcloud registration data.
-static const std::string source_pointcloud_filename =
-        TEST_DATA_DIR "/ICP/cloud_bin_0.pcd";
-static const std::string target_pointcloud_filename =
-        TEST_DATA_DIR "/ICP/cloud_bin_1.pcd";
-
-static const double voxel_downsampling_factor = 0.05;
-
-// ICP ConvergenceCriteria.
-static const double relative_fitness = 1e-6;
-static const double relative_rmse = 1e-6;
-static const int max_iterations = 1;
-
-// NNS parameter.
-static const double max_correspondence_distance = 0.15;
 
 namespace open3d {
 namespace pipelines {
 namespace registration {
+
+// Testing parameters:
+// Filename for pointcloud registration data.
+static const std::string source_pointcloud_filename =
+        utility::GetDataPathCommon("ICP/cloud_bin_0.pcd");
+static const std::string target_pointcloud_filename =
+        utility::GetDataPathCommon("ICP/cloud_bin_1.pcd");
+
+static const double voxel_downsampling_factor = 0.02;
+
+// ICP ConvergenceCriteria.
+static const double relative_fitness = 1e-6;
+static const double relative_rmse = 1e-6;
+static const int max_iterations = 30;
+
+// NNS parameter.
+static const double max_correspondence_distance = 0.05;
 
 static std::tuple<geometry::PointCloud, geometry::PointCloud> LoadPointCloud(
         const std::string& source_filename,
@@ -80,8 +81,8 @@ static std::tuple<geometry::PointCloud, geometry::PointCloud> LoadPointCloud(
     return std::make_tuple(source, target);
 }
 
-static void BenchmarkRegistrationICPLegacy(
-        benchmark::State& state, const TransformationEstimationType& type) {
+static void BenchmarkICPLegacy(benchmark::State& state,
+                               const TransformationEstimationType& type) {
     geometry::PointCloud source;
     geometry::PointCloud target;
 
@@ -121,12 +122,12 @@ static void BenchmarkRegistrationICPLegacy(
                       reg_result.inlier_rmse_);
 }
 
-BENCHMARK_CAPTURE(BenchmarkRegistrationICPLegacy,
+BENCHMARK_CAPTURE(BenchmarkICPLegacy,
                   PointToPlane / CPU,
                   TransformationEstimationType::PointToPlane)
         ->Unit(benchmark::kMillisecond);
 
-BENCHMARK_CAPTURE(BenchmarkRegistrationICPLegacy,
+BENCHMARK_CAPTURE(BenchmarkICPLegacy,
                   PointToPoint / CPU,
                   TransformationEstimationType::PointToPoint)
         ->Unit(benchmark::kMillisecond);
