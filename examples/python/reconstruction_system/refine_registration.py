@@ -1,38 +1,25 @@
 # ----------------------------------------------------------------------------
 # -                        Open3D: www.open3d.org                            -
 # ----------------------------------------------------------------------------
-# The MIT License (MIT)
-#
-# Copyright (c) 2018-2021 www.open3d.org
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-# IN THE SOFTWARE.
+# Copyright (c) 2018-2023 www.open3d.org
+# SPDX-License-Identifier: MIT
 # ----------------------------------------------------------------------------
 
 # examples/python/reconstruction_system/refine_registration.py
 
+import multiprocessing
+import os
+import sys
+
 import numpy as np
 import open3d as o3d
-import sys
-sys.path.append("../utility")
-from file import join, get_file_list, write_poses_to_log
-from visualization import draw_registration_result_original_color
-sys.path.append(".")
+
+pyexample_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(pyexample_path)
+
+from open3d_example import join, get_file_list, write_poses_to_log, draw_registration_result_original_color
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from optimize_posegraph import optimize_posegraph_for_refined_scene
 
 
@@ -98,8 +85,11 @@ def multiscale_icp(source,
                     o3d.pipelines.registration.ICPConvergenceCriteria(
                         max_iteration=iter))
             if config["icp_method"] == "color":
+                # Colored ICP is sensitive to threshold.
+                # Fallback to preset distance threshold that works better.
+                # TODO: make it adjustable in the upgraded system.
                 result_icp = o3d.pipelines.registration.registration_colored_icp(
-                    source_down, target_down, distance_threshold,
+                    source_down, target_down, voxel_size[scale],
                     current_transformation,
                     o3d.pipelines.registration.
                     TransformationEstimationForColoredICP(),
@@ -123,6 +113,9 @@ def multiscale_icp(source,
                 source_down, target_down, voxel_size[scale] * 1.4,
                 result_icp.transformation)
 
+    if config["debug_mode"]:
+        draw_registration_result_original_color(source, target,
+                                                result_icp.transformation)
     return (result_icp.transformation, information_matrix)
 
 
@@ -133,6 +126,7 @@ def local_refinement(source, target, transformation_init, config):
             source, target,
             [voxel_size, voxel_size/2.0, voxel_size/4.0], [50, 30, 14],
             config, transformation_init)
+
     return (transformation, information)
 
 
@@ -142,16 +136,9 @@ def register_point_cloud_pair(ply_file_names, s, t, transformation_init,
     source = o3d.io.read_point_cloud(ply_file_names[s])
     print("reading %s ..." % ply_file_names[t])
     target = o3d.io.read_point_cloud(ply_file_names[t])
-
-    if config["debug_mode"]:
-        draw_registration_result_original_color(source, target,
-                                                transformation_init)
-
     (transformation, information) = \
-        local_refinement(source, target, transformation_init, config)
-
+            local_refinement(source, target, transformation_init, config)
     if config["debug_mode"]:
-        draw_registration_result_original_color(source, target, transformation)
         print(transformation)
         print(information)
     return (transformation, information)
@@ -178,32 +165,29 @@ def make_posegraph_for_refined_scene(ply_file_names, config):
     for edge in pose_graph.edges:
         s = edge.source_node_id
         t = edge.target_node_id
-
-        transformation_init = edge.transformation
         matching_results[s * n_files + t] = \
-            matching_result(s, t, transformation_init)
+            matching_result(s, t, edge.transformation)
 
-    if config["python_multi_threading"] == True:
-        from joblib import Parallel, delayed
-        import multiprocessing
-        import subprocess
-        MAX_THREAD = min(multiprocessing.cpu_count(),
-                         max(len(pose_graph.edges), 1))
-        results = Parallel(n_jobs=MAX_THREAD)(
-            delayed(register_point_cloud_pair)(
-                ply_file_names, matching_results[r].s, matching_results[r].t,
-                matching_results[r].transformation, config)
-            for r in matching_results)
+    if config["python_multi_threading"] is True:
+        os.environ['OMP_NUM_THREADS'] = '1'
+        max_workers = max(
+            1, min(multiprocessing.cpu_count() - 1, len(pose_graph.edges)))
+        mp_context = multiprocessing.get_context('spawn')
+        with mp_context.Pool(processes=max_workers) as pool:
+            args = [(ply_file_names, v.s, v.t, v.transformation, config)
+                    for k, v in matching_results.items()]
+            results = pool.starmap(register_point_cloud_pair, args)
+
         for i, r in enumerate(matching_results):
             matching_results[r].transformation = results[i][0]
             matching_results[r].information = results[i][1]
     else:
         for r in matching_results:
             (matching_results[r].transformation,
-                    matching_results[r].information) = \
-                    register_point_cloud_pair(ply_file_names,
-                    matching_results[r].s, matching_results[r].t,
-                    matching_results[r].transformation, config)
+             matching_results[r].information) = \
+                register_point_cloud_pair(ply_file_names,
+                                          matching_results[r].s, matching_results[r].t,
+                                          matching_results[r].transformation, config)
 
     pose_graph_new = o3d.pipelines.registration.PoseGraph()
     odometry = np.identity(4)

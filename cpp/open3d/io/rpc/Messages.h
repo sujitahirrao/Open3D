@@ -1,31 +1,13 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #pragma once
 
+#include <array>
 #include <cstring>
 #include <map>
 #include <msgpack.hpp>
@@ -306,8 +288,14 @@ struct MeshData {
     /// stores arbitrary attributes for each line
     std::map<std::string, Array> line_attributes;
 
+    /// Material for DrawableGeometry
+    std::string material = "";
+    /// Material scalar properties
+    std::map<std::string, float> material_scalar_attributes;
+    /// Material vector[4] properties
+    std::map<std::string, std::array<float, 4>> material_vector_attributes;
     /// map of arrays that can be interpreted as textures
-    std::map<std::string, Array> textures;
+    std::map<std::string, Array> texture_maps;
 
     void SetO3DTypeToPointCloud() { o3d_type = "PointCloud"; }
     void SetO3DTypeToLineSet() { o3d_type = "LineSet"; }
@@ -392,7 +380,10 @@ struct MeshData {
                        face_attributes,
                        lines,
                        line_attributes,
-                       textures);
+                       material,
+                       material_scalar_attributes,
+                       material_vector_attributes,
+                       texture_maps);
 };
 
 /// struct for defining a "set_mesh_data" message, which adds or replaces mesh

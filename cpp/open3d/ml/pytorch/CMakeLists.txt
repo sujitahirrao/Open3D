@@ -140,9 +140,18 @@ target_link_libraries(open3d_torch_ops PRIVATE
     Open3D::3rdparty_eigen3
     Open3D::3rdparty_fmt
     Open3D::3rdparty_nanoflann
-    Open3D::3rdparty_parallelstl
     Open3D::3rdparty_tbb
 )
+if (TARGET Open3D::3rdparty_parallelstl)
+    target_link_libraries(open3d_torch_ops PRIVATE
+        Open3D::3rdparty_parallelstl
+    )
+endif()
+if (TARGET Open3D::3rdparty_onedpl)
+    target_link_libraries(open3d_torch_ops PRIVATE
+        Open3D::3rdparty_onedpl
+    )
+endif()
 
 if (BUILD_CUDA_MODULE)
     target_link_libraries(open3d_torch_ops PRIVATE
@@ -162,3 +171,24 @@ install(TARGETS open3d_torch_ops EXPORT Open3DTorchOps
     LIBRARY DESTINATION ${Open3D_INSTALL_LIB_DIR}
 )
 install(EXPORT Open3DTorchOps NAMESPACE ${PROJECT_NAME}:: DESTINATION ${Open3D_INSTALL_CMAKE_DIR})
+
+if (BUILD_SHARED_LIBS AND UNIX)
+file(CONFIGURE OUTPUT open3d_torch_ops.pc.in
+         CONTENT [=[
+prefix=${pcfiledir}/../..
+libdir=${prefix}/lib
+includedir=${prefix}/include/
+
+Name: Open3D PyTorch Ops
+Description: @PROJECT_DESCRIPTION@ This library contains 3D ML Ops for use with PyTorch.
+URL: @PROJECT_HOMEPAGE_URL@
+Version: @PROJECT_VERSION@
+Requires: Open3D = @PROJECT_VERSION@
+Cflags:
+Libs: -lopen3d_torch_ops]=]  @ONLY NEWLINE_STYLE LF)
+    file(GENERATE OUTPUT open3d_torch_ops.pc INPUT
+        "${CMAKE_CURRENT_BINARY_DIR}/open3d_torch_ops.pc.in"
+        TARGET open3d_torch_ops)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open3d_torch_ops.pc"
+        DESTINATION "${Open3D_INSTALL_LIB_DIR}/pkgconfig")
+endif()

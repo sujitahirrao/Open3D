@@ -1,42 +1,26 @@
 # ----------------------------------------------------------------------------
 # -                        Open3D: www.open3d.org                            -
 # ----------------------------------------------------------------------------
-# The MIT License (MIT)
-#
-# Copyright (c) 2018-2021 www.open3d.org
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-# IN THE SOFTWARE.
+# Copyright (c) 2018-2023 www.open3d.org
+# SPDX-License-Identifier: MIT
 # ----------------------------------------------------------------------------
 
 # examples/python/reconstruction_system/slac.py
 
 import numpy as np
 import open3d as o3d
-import sys
-sys.path.append("../utility")
-from file import join, get_file_list, write_poses_to_log
+import os, sys
 
-sys.path.append(".")
+pyexample_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(pyexample_path)
+
+from open3d_example import join, get_file_list, write_poses_to_log
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 
 def run(config):
-    print("slac non-rigid optimisation.")
+    print("slac non-rigid optimization.")
     o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Debug)
 
     path_dataset = config['path_dataset']
@@ -60,7 +44,7 @@ def run(config):
         fitness_threshold=config["fitness_threshold"],
         regularizer_weight=config["regularizer_weight"],
         device=o3d.core.Device(str(config["device"])),
-        slac_folder=path_dataset + config["folder_slac"])
+        slac_folder=join(path_dataset, config["folder_slac"]))
 
     # SLAC debug option.
     debug_option = o3d.t.pipelines.slac.slac_debug_option(False, 0)
@@ -77,14 +61,14 @@ def run(config):
             ply_file_names, pose_graph_fragment, slac_params, debug_option)
 
         hashmap = ctrl_grid.get_hashmap()
-        active_buf_indices = hashmap.get_active_buf_indices().to(
+        active_buf_indices = hashmap.active_buf_indices().to(
             o3d.core.Dtype.Int64)
 
-        key_tensor = hashmap.get_key_tensor()[active_buf_indices]
+        key_tensor = hashmap.key_tensor()[active_buf_indices]
         key_tensor.save(
             join(slac_params.get_subfolder_name(), "ctr_grid_keys.npy"))
 
-        value_tensor = hashmap.get_value_tensor()[active_buf_indices]
+        value_tensor = hashmap.value_tensor()[active_buf_indices]
         value_tensor.save(
             join(slac_params.get_subfolder_name(), "ctr_grid_values.npy"))
 

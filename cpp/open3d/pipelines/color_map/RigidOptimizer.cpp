@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/pipelines/color_map/RigidOptimizer.h"
@@ -89,11 +70,11 @@ static void ComputeJacobianAndResidualRigid(
     w = 1.0;  // Dummy.
 }
 
-geometry::TriangleMesh RunRigidOptimizer(
-        const geometry::TriangleMesh& mesh,
-        const std::vector<geometry::RGBDImage>& images_rgbd,
-        const camera::PinholeCameraTrajectory& camera_trajectory,
-        const RigidOptimizerOption& option) {
+std::pair<geometry::TriangleMesh, camera::PinholeCameraTrajectory>
+RunRigidOptimizer(const geometry::TriangleMesh& mesh,
+                  const std::vector<geometry::RGBDImage>& images_rgbd,
+                  const camera::PinholeCameraTrajectory& camera_trajectory,
+                  const RigidOptimizerOption& option) {
     // The following properties will change during optimization.
     geometry::TriangleMesh opt_mesh = mesh;
     camera::PinholeCameraTrajectory opt_camera_trajectory = camera_trajectory;
@@ -246,7 +227,7 @@ geometry::TriangleMesh RunRigidOptimizer(
                             option.image_boundary_margin_,
                             option.invisible_vertex_color_knn_);
 
-    return opt_mesh;
+    return std::make_pair(opt_mesh, opt_camera_trajectory);
 }
 
 }  // namespace color_map

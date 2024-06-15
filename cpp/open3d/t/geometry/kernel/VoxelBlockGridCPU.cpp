@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include <tbb/concurrent_unordered_set.h>
@@ -135,8 +116,8 @@ void PointCloudTouchCPU(
 
 void DepthTouchCPU(std::shared_ptr<core::HashMap> &hashmap,
                    const core::Tensor &depth,
-                   const core::Tensor &intrinsics,
-                   const core::Tensor &extrinsics,
+                   const core::Tensor &intrinsic,
+                   const core::Tensor &extrinsic,
                    core::Tensor &voxel_block_coords,
                    index_t voxel_grid_resolution,
                    float voxel_size,
@@ -146,8 +127,8 @@ void DepthTouchCPU(std::shared_ptr<core::HashMap> &hashmap,
                    index_t stride) {
     core::Device device = depth.GetDevice();
     NDArrayIndexer depth_indexer(depth, 2);
-    core::Tensor pose = t::geometry::InverseTransformation(extrinsics);
-    TransformIndexer ti(intrinsics, pose, 1.0f);
+    core::Tensor pose = t::geometry::InverseTransformation(extrinsic);
+    TransformIndexer ti(intrinsic, pose, 1.0f);
 
     // Output
     index_t rows_strided = depth_indexer.GetShape(0) / stride;
@@ -219,12 +200,13 @@ void DepthTouchCPU(std::shared_ptr<core::HashMap> &hashmap,
     }
 }
 
-#define FN_ARGUMENTS                                                     \
-    const core::Tensor &depth, const core::Tensor &color,                \
-            const core::Tensor &indices, const core::Tensor &block_keys, \
-            TensorMap &value_tensor_map, const core::Tensor &intrinsics, \
-            const core::Tensor &extrinsics, index_t resolution,          \
-            float voxel_size, float sdf_trunc, float depth_scale,        \
+#define FN_ARGUMENTS                                                          \
+    const core::Tensor &depth, const core::Tensor &color,                     \
+            const core::Tensor &indices, const core::Tensor &block_keys,      \
+            TensorMap &value_tensor_map, const core::Tensor &depth_intrinsic, \
+            const core::Tensor &color_intrinsic,                              \
+            const core::Tensor &extrinsic, index_t resolution,                \
+            float voxel_size, float sdf_trunc, float depth_scale,             \
             float depth_max
 
 template void IntegrateCPU<uint16_t, uint8_t, float, uint16_t, uint16_t>(
@@ -240,10 +222,11 @@ template void IntegrateCPU<float, float, float, float, float>(FN_ARGUMENTS);
 #define FN_ARGUMENTS                                                           \
     std::shared_ptr<core::HashMap> &hashmap, const TensorMap &block_value_map, \
             const core::Tensor &range_map, TensorMap &renderings_map,          \
-            const core::Tensor &intrinsics, const core::Tensor &extrinsics,    \
+            const core::Tensor &intrinsic, const core::Tensor &extrinsic,      \
             index_t h, index_t w, index_t block_resolution, float voxel_size,  \
-            float sdf_trunc, float depth_scale, float depth_min,               \
-            float depth_max, float weight_threshold
+            float depth_scale, float depth_min, float depth_max,               \
+            float weight_threshold, float trunc_voxel_multiplier,              \
+            int range_map_down_factor
 
 template void RayCastCPU<float, uint16_t, uint16_t>(FN_ARGUMENTS);
 template void RayCastCPU<float, float, float>(FN_ARGUMENTS);

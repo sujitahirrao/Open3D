@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include <k4a/k4a.h>
@@ -54,47 +35,57 @@ namespace k4a_plugin {
 static const std::string k4a_lib_name = "k4a.dll";
 static const std::string k4arecord_lib_name = "k4arecord.dll";
 
+static HINSTANCE LoadK4ADllHandle(const std::string& lib_name) {
+    // clang-format off
+    // To use custom library path for K4a, set environment variable K4A_LIB_DIR
+    // Exammple:
+    // set K4A_LIB_DIR=C:\Program Files\Azure Kinect SDK v1.2.0\sdk\windows-desktop\amd64\release\bin
+    // Note that double quotes and "\\" are not needed
+    std::string env_lib_dir = "";
+    char const* temp = std::getenv("K4A_LIB_DIR");
+    if (temp != nullptr) {
+        env_lib_dir = std::string(temp);
+    }
+    utility::LogDebug("Environment variable K4A_LIB_DIR: {}", env_lib_dir);
+
+    static const std::vector<std::string> k4a_lib_path_hints = {
+        env_lib_dir,
+        "",
+        "C:\\Program Files\\Azure Kinect SDK v1.4.1\\sdk\\windows-desktop\\amd64\\release\\bin",
+        "C:\\Program Files\\Azure Kinect SDK v1.4.0\\sdk\\windows-desktop\\amd64\\release\\bin",
+        "C:\\Program Files\\Azure Kinect SDK v1.3.0\\sdk\\windows-desktop\\amd64\\release\\bin",
+        "C:\\Program Files\\Azure Kinect SDK v1.2.0\\sdk\\windows-desktop\\amd64\\release\\bin"
+    };
+    // clang-format on
+
+    HINSTANCE handle = NULL;
+    for (const std::string& k4a_lib_path_hint : k4a_lib_path_hints) {
+        utility::LogDebug("Trying k4a_lib_path_hint: {}", k4a_lib_path_hint);
+        std::string full_path = k4a_lib_path_hint + "\\" + lib_name;
+        handle = LoadLibrary(TEXT(full_path.c_str()));
+        if (handle != NULL) {
+            utility::LogDebug("Loaded {}", full_path);
+            break;
+        }
+    }
+    if (handle == NULL) {
+        utility::LogError("Cannot load {}", lib_name);
+    }
+
+    return handle;
+}
+
 static HINSTANCE GetDynamicLibHandle(const std::string& lib_name) {
     static std::unordered_map<std::string, HINSTANCE> map_lib_name_to_handle;
 
+    // Always trigger the loading of k4a.dll as it is the dependency of
+    // k4arecord.dll
+    if (map_lib_name_to_handle.count(k4a_lib_name) == 0) {
+        map_lib_name_to_handle[k4a_lib_name] = LoadK4ADllHandle(k4a_lib_name);
+    }
+
     if (map_lib_name_to_handle.count(lib_name) == 0) {
-        // clang-format off
-        // To use custom library path for K4a, set environment variable K4A_LIB_DIR
-        // Exammple:
-        // set K4A_LIB_DIR=C:\Program Files\Azure Kinect SDK v1.2.0\sdk\windows-desktop\amd64\release\bin
-        // Note that double qoutes and "\\" are not needed
-        std::string env_lib_dir = "";
-        char const* temp = std::getenv("K4A_LIB_DIR");
-        if (temp != nullptr) {
-            env_lib_dir = std::string(temp);
-        }
-        utility::LogDebug("Environment variable K4A_LIB_DIR: {}", env_lib_dir);
-
-        static const std::vector<std::string> k4a_lib_path_hints = {
-            env_lib_dir,
-            "",
-            "C:\\Program Files\\Azure Kinect SDK v1.4.1\\sdk\\windows-desktop\\amd64\\release\\bin",
-            "C:\\Program Files\\Azure Kinect SDK v1.4.0\\sdk\\windows-desktop\\amd64\\release\\bin",
-            "C:\\Program Files\\Azure Kinect SDK v1.3.0\\sdk\\windows-desktop\\amd64\\release\\bin",
-            "C:\\Program Files\\Azure Kinect SDK v1.2.0\\sdk\\windows-desktop\\amd64\\release\\bin"
-        };
-        // clang-format on
-
-        HINSTANCE handle = NULL;
-        for (const std::string& k4a_lib_path_hint : k4a_lib_path_hints) {
-            utility::LogDebug("Trying k4a_lib_path_hint: {}",
-                              k4a_lib_path_hint);
-            std::string full_path = k4a_lib_path_hint + "\\" + lib_name;
-            handle = LoadLibrary(TEXT(full_path.c_str()));
-            if (handle != NULL) {
-                utility::LogDebug("Loaded {}", full_path);
-                break;
-            }
-        }
-        if (handle == NULL) {
-            utility::LogError("Cannot load {}", lib_name);
-        }
-        map_lib_name_to_handle[lib_name] = handle;
+        map_lib_name_to_handle[lib_name] = LoadK4ADllHandle(lib_name);
     }
     return map_lib_name_to_handle.at(lib_name);
 }

@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/visualization/webrtc_server/WebRTCWindowSystem.h"
@@ -165,6 +146,25 @@ WebRTCWindowSystem::WebRTCWindowSystem()
                     os_window != nullptr) {
                     gui::MouseEvent me;
                     if (me.FromJson(value)) PostMouseEvent(os_window, me);
+                }
+                return "";  // empty string is not sent back
+            });
+
+    // Synchronized MouseEvents over multiple windows
+    RegisterDataChannelMessageCallback(
+            "SyncMouseEvent",
+            [this](const std::string &message) -> std::string {
+                Json::Value value = utility::StringToJson(message);
+                if (value.get("class_name", "").asString() != "SyncMouseEvent")
+                    return "Error.";
+                value["class_name"] = "MouseEvent";
+                gui::MouseEvent me;
+                if (!me.FromJson(value)) return "Bad MouseEvent. Ignoring.";
+                for (const auto &json_window_uid :
+                     value.get("window_uid_list", "")) {
+                    const auto os_window =
+                            GetOSWindowByUID(json_window_uid.asString());
+                    if (os_window != nullptr) PostMouseEvent(os_window, me);
                 }
                 return "";  // empty string is not sent back
             });
@@ -419,7 +419,7 @@ void WebRTCWindowSystem::SendInitFrames(const std::string &window_uid) {
 std::string WebRTCWindowSystem::CallHttpAPI(const std::string &entry_point,
                                             const std::string &query_string,
                                             const std::string &data) const {
-    utility::LogInfo("[Called HTTP API (custom handshake)] {}", entry_point);
+    utility::LogDebug("[Called HTTP API (custom handshake)] {}", entry_point);
 
     std::string query_string_trimmed = "";
     if (!query_string.empty() && query_string[0] == '?') {

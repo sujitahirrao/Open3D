@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/geometry/VoxelGrid.h"
@@ -96,6 +77,10 @@ void pybind_voxelgrid(py::module &m) {
                  "Returns ``True`` if the voxel grid contains voxels.")
             .def("get_voxel", &VoxelGrid::GetVoxel, "point"_a,
                  "Returns voxel index given query point.")
+            .def("add_voxel", &VoxelGrid::AddVoxel, "voxel"_a,
+                 "Add a new voxel into the VoxelGrid.")
+            .def("remove_voxel", &VoxelGrid::RemoveVoxel, "idx"_a,
+                 "Remove a voxel given index.")
             .def("check_if_included", &VoxelGrid::CheckIfIncluded, "queries"_a,
                  "Element-wise check if a query in the list is included in "
                  "the VoxelGrid. Queries are double precision and "
@@ -120,6 +105,14 @@ void pybind_voxelgrid(py::module &m) {
                  "Convert to Octree.")
             .def("create_from_octree", &VoxelGrid::CreateFromOctree, "octree"_a,
                  "Convert from Octree.")
+            .def("get_voxel_center_coordinate",
+                 &VoxelGrid::GetVoxelCenterCoordinate, "idx"_a,
+                 "Returns the center coordinate of a voxel given its grid "
+                 "index.")
+            .def("get_voxel_bounding_points",
+                 &VoxelGrid::GetVoxelBoundingPoints, "index"_a,
+                 "Returns the 8 bounding points of a voxel given its grid "
+                 "index.")
             .def_static("create_dense", &VoxelGrid::CreateDense,
                         "Creates a voxel grid where every voxel is set (hence "
                         "dense). This is a useful starting point for voxel "
@@ -158,7 +151,7 @@ void pybind_voxelgrid(py::module &m) {
                     "parameters",
                     "input"_a, "voxel_size"_a, "min_bound"_a, "max_bound"_a)
             .def_readwrite("origin", &VoxelGrid::origin_,
-                           "``float64`` vector of length 3: Coorindate of the "
+                           "``float64`` vector of length 3: Coordinate of the "
                            "origin point.")
             .def_readwrite("voxel_size", &VoxelGrid::voxel_size_,
                            "``float64`` Size of the voxel.");
@@ -166,6 +159,11 @@ void pybind_voxelgrid(py::module &m) {
     docstring::ClassMethodDocInject(m, "VoxelGrid", "has_voxels");
     docstring::ClassMethodDocInject(m, "VoxelGrid", "get_voxel",
                                     {{"point", "The query point."}});
+    docstring::ClassMethodDocInject(m, "VoxelGrid", "add_voxel",
+                                    {{"Voxel", "A new voxel."}});
+    docstring::ClassMethodDocInject(
+            m, "VoxelGrid", "remove_voxel",
+            {{"idx", "The grid index of the target voxel."}});
     docstring::ClassMethodDocInject(
             m, "VoxelGrid", "check_if_included",
             {{"query", "a list of voxel indices to check."}});
@@ -192,6 +190,12 @@ void pybind_voxelgrid(py::module &m) {
     docstring::ClassMethodDocInject(
             m, "VoxelGrid", "create_from_octree",
             {{"octree", "geometry.Octree: The source octree."}});
+    docstring::ClassMethodDocInject(
+            m, "VoxelGrid", "get_voxel_center_coordinate",
+            {{"idx", "The grid index of the query voxel."}});
+    docstring::ClassMethodDocInject(
+            m, "VoxelGrid", "get_voxel_bounding_points",
+            {{"index", "The grid index of the query voxel."}});
     docstring::ClassMethodDocInject(
             m, "VoxelGrid", "create_dense",
             {{"origin", "Coordinate center of the VoxelGrid"},

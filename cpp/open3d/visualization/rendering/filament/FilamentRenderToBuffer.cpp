@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/visualization/rendering/filament/FilamentRenderToBuffer.h"
@@ -119,9 +100,10 @@ void FilamentRenderToBuffer::Configure(const View* view,
 
     // Create a proper copy of the View with scen attached
     CopySettings(view);
-    auto* downcast_scene = dynamic_cast<FilamentScene*>(scene);
+    auto* downcast_scene = static_cast<FilamentScene*>(scene);
     if (downcast_scene) {
         view_->SetScene(*downcast_scene);
+        scene_ = downcast_scene;
     }
     SetDimensions(width, height);
 }
@@ -153,7 +135,7 @@ void FilamentRenderToBuffer::SetDimensions(const std::uint32_t width,
 
 void FilamentRenderToBuffer::CopySettings(const View* view) {
     view_ = new FilamentView(engine_, EngineInstance::GetResourceManager());
-    auto* downcast = dynamic_cast<const FilamentView*>(view);
+    auto* downcast = static_cast<const FilamentView*>(view);
     if (downcast) {
         view_->CopySettingsFrom(*downcast);
     }
@@ -189,6 +171,7 @@ void FilamentRenderToBuffer::ReadPixelsCallback(void*, size_t, void* user) {
 
 void FilamentRenderToBuffer::Render() {
     frame_done_ = false;
+    scene_->HideRefractedMaterials();
     if (renderer_->beginFrame(swapchain_)) {
         renderer_->render(view_->GetNativeView());
 
@@ -212,6 +195,7 @@ void FilamentRenderToBuffer::Render() {
 
         renderer_->endFrame();
     }
+    scene_->HideRefractedMaterials(false);
 
     pending_ = false;
 }

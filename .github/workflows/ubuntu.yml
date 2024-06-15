@@ -1,4 +1,7 @@
-name: Ubuntu CI
+name: Ubuntu
+permissions:
+  contents: write
+  actions: write
 
 on:
   workflow_dispatch:
@@ -7,75 +10,90 @@ on:
         description: 'Set to OFF for Release wheels'
         required: false
         default: 'ON'
-
   push:
     branches:
-      - master
+      - main
   pull_request:
-    types: [opened, reopened, synchronize]  # Rebuild on new pushes to PR
+    types: [opened, reopened, synchronize]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 env:
   NPROC: 2
 
 jobs:
   ubuntu:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        CONFIG: [ON, OFF]
+        BUILD_SHARED_LIBS: [ON, OFF]
+        MLOPS: [ON, OFF]
+        exclude:
+          - BUILD_SHARED_LIBS: OFF
+            MLOPS: ON
     env:
-      SHARED: ${{ matrix.CONFIG }}
+      BUILD_SHARED_LIBS: ${{ matrix.BUILD_SHARED_LIBS }}
       BUILD_CUDA_MODULE: OFF
-      BUILD_TENSORFLOW_OPS: ${{ matrix.CONFIG }}
-      BUILD_PYTORCH_OPS: ${{ matrix.CONFIG }}
+      DEVELOPER_BUILD: ${{ github.event.inputs.developer_build || 'ON' }}
+      OPEN3D_CPU_RENDERING: true
     steps:
-      - name: Cancel outdated
-        uses: fkirc/skip-duplicate-actions@master
-        with:
-          github_token: ${{ github.token }}
-
       - name: Checkout source code
-        uses: actions/checkout@v2
-        with:
-          submodules: true
-
+        uses: actions/checkout@v4
       - name: Maximize build space
         run: |
           source util/ci_utils.sh
           maximize_ubuntu_github_actions_build_space
-
-      - name: Setup cache
-        uses: actions/cache@v2
-        with:
-          # Ref: https://github.com/apache/incubator-mxnet/pull/18459/files
-          path: ~/.ccache
-          # We include the commit sha in the cache key, as new cache entries are
-          # only created if there is no existing entry for the key yet.
-          key: ${{ runner.os }}-ccache-${{ github.sha }}
-          # Restore any ccache cache entry, if none for
-          # ${{ runner.os }}-ccache-${{ github.sha }} exists.
-          # Common prefix will be used so that ccache can be used across commits.
-          restore-keys: |
-            ${{ runner.os }}-ccache
-
-      - name: Set up Python version
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.6
-
-      # Pre-installed 18.04 packages: https://git.io/JfHmW
-      - name: Install dependencies
+      - name: Docker build
         run: |
-          ./util/install_deps_ubuntu.sh assume-yes
-          wget https://github.com/isl-org/open3d_downloads/releases/download/ccache/ccache
-          chmod +x ccache
-          sudo mv ccache /usr/local/bin
-          ccache -M 2G  # See .github/workflows/readme.md for ccache strategy.
-
-      - name: Config and build
+          if   [ "${{ matrix.BUILD_SHARED_LIBS }}" = "OFF" ] && [ "${{ matrix.MLOPS }}" = "OFF" ]; then
+            docker/docker_build.sh cpu-static
+          elif [ "${{ matrix.BUILD_SHARED_LIBS }}" = "ON"  ] && [ "${{ matrix.MLOPS }}" = "OFF" ] && [ "${{ env.DEVELOPER_BUILD }}" = "ON"  ]; then
+            docker/docker_build.sh cpu-shared
+          elif [ "${{ matrix.BUILD_SHARED_LIBS }}" = "ON"  ] && [ "${{ matrix.MLOPS }}" = "OFF" ] && [ "${{ env.DEVELOPER_BUILD }}" = "OFF" ]; then
+            docker/docker_build.sh cpu-shared-release
+          elif [ "${{ matrix.BUILD_SHARED_LIBS }}" = "ON"  ] && [ "${{ matrix.MLOPS }}" = "ON"  ] && [ "${{ env.DEVELOPER_BUILD }}" = "ON"  ]; then
+            docker/docker_build.sh cpu-shared-ml
+          elif [ "${{ matrix.BUILD_SHARED_LIBS }}" = "ON"  ] && [ "${{ matrix.MLOPS }}" = "ON"  ] && [ "${{ env.DEVELOPER_BUILD }}" = "OFF" ]; then
+            docker/docker_build.sh cpu-shared-ml-release
+          fi
+      - name: Docker test
         run: |
-          PATH=/usr/lib/ccache:$PATH
-          ccache -s
-          ./util/run_ci.sh
-          ccache -s
+          if   [ "${{ matrix.BUILD_SHARED_LIBS }}" = "OFF" ] && [ "${{ matrix.MLOPS }}" = "OFF" ]; then
+            docker/docker_test.sh cpu-static
+          elif [ "${{ matrix.BUILD_SHARED_LIBS }}" = "ON"  ] && [ "${{ matrix.MLOPS }}" = "OFF" ] && [ "${{ env.DEVELOPER_BUILD }}" = "ON"  ]; then
+            docker/docker_test.sh cpu-shared
+          elif [ "${{ matrix.BUILD_SHARED_LIBS }}" = "ON"  ] && [ "${{ matrix.MLOPS }}" = "OFF" ] && [ "${{ env.DEVELOPER_BUILD }}" = "OFF" ]; then
+            docker/docker_test.sh cpu-shared-release
+          elif [ "${{ matrix.BUILD_SHARED_LIBS }}" = "ON"  ] && [ "${{ matrix.MLOPS }}" = "ON"  ] && [ "${{ env.DEVELOPER_BUILD }}" = "ON"  ]; then
+            docker/docker_test.sh cpu-shared-ml
+          elif [ "${{ matrix.BUILD_SHARED_LIBS }}" = "ON"  ] && [ "${{ matrix.MLOPS }}" = "ON"  ] && [ "${{ env.DEVELOPER_BUILD }}" = "OFF" ]; then
+            docker/docker_test.sh cpu-shared-ml-release
+          fi
+      - name: Upload package to GitHub artifacts
+        if: ${{ env.BUILD_SHARED_LIBS == 'ON' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: open3d-devel-linux-x86_64-ML_${{ matrix.MLOPS }}
+          path: open3d-devel-*.tar.xz
+          if-no-files-found: error
+      - name: Upload viewer to GitHub artifacts
+        if: ${{ env.BUILD_SHARED_LIBS == 'OFF' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: open3d-viewer-Linux
+          path: open3d-viewer-*-Linux.deb
+          if-no-files-found: error
+      - name: Update devel release
+        if: ${{ github.ref == 'refs/heads/main' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ ${BUILD_SHARED_LIBS} == 'ON' ] ; then
+            gh release upload main-devel open3d-devel-*.tar.xz --clobber
+          else
+            gh release upload main-devel open3d-viewer-*-Linux.deb --clobber
+          fi
+          gh release view main-devel

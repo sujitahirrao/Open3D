@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/visualization/visualizer/VisualizerWithCustomAnimation.h"
@@ -32,6 +13,7 @@
 #include "open3d/io/IJsonConvertibleIO.h"
 #include "open3d/utility/FileSystem.h"
 #include "open3d/utility/Logging.h"
+#include "open3d/utility/ProgressBar.h"
 #include "open3d/visualization/visualizer/ViewControlWithCustomAnimation.h"
 
 namespace open3d {
@@ -96,8 +78,8 @@ void VisualizerWithCustomAnimation::Play(
     is_redraw_required_ = true;
     UpdateWindowTitle();
     recording_file_index_ = 0;
-    utility::ConsoleProgressBar progress_bar(view_control.NumOfFrames(),
-                                             "Play animation: ");
+    auto progress_bar_ptr = std::make_shared<utility::ProgressBar>(
+            view_control.NumOfFrames(), "Play animation: ");
     auto trajectory_ptr = std::make_shared<camera::PinholeCameraTrajectory>();
     bool recording_trajectory = view_control.IsValidPinholeCameraTrajectory();
     if (recording) {
@@ -112,7 +94,7 @@ void VisualizerWithCustomAnimation::Play(
     RegisterAnimationCallback([this, recording, recording_depth,
                                close_window_when_animation_ends,
                                recording_trajectory, trajectory_ptr,
-                               &progress_bar](Visualizer *vis) {
+                               progress_bar_ptr](Visualizer *vis) {
         // The lambda function captures no references to avoid dangling
         // references
         auto &view_control =
@@ -139,7 +121,7 @@ void VisualizerWithCustomAnimation::Play(
             }
         }
         view_control.Step(1.0);
-        ++progress_bar;
+        ++(*progress_bar_ptr);
         if (view_control.IsPlayingEnd(recording_file_index_)) {
             view_control.SetAnimationMode(
                     ViewControlWithCustomAnimation::AnimationMode::FreeMode);

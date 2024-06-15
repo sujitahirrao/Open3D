@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/visualization/utility/SelectionPolygon.h"
@@ -29,6 +10,7 @@
 #include "open3d/geometry/PointCloud.h"
 #include "open3d/geometry/TriangleMesh.h"
 #include "open3d/utility/Logging.h"
+#include "open3d/utility/ProgressBar.h"
 #include "open3d/visualization/utility/GLHelper.h"
 #include "open3d/visualization/utility/SelectionPolygonVolume.h"
 #include "open3d/visualization/visualizer/ViewControl.h"
@@ -235,8 +217,8 @@ std::vector<size_t> SelectionPolygon::CropInRectangle(
     double half_height = (double)view.GetWindowHeight() * 0.5;
     auto min_bound = GetMinBound();
     auto max_bound = GetMaxBound();
-    utility::ConsoleProgressBar progress_bar((int64_t)input.size(),
-                                             "Cropping geometry: ");
+    utility::ProgressBar progress_bar((int64_t)input.size(),
+                                      "Cropping geometry: ");
     for (size_t i = 0; i < input.size(); i++) {
         ++progress_bar;
         const auto &point = input[i];
@@ -261,8 +243,8 @@ std::vector<size_t> SelectionPolygon::CropInPolygon(
     double half_width = (double)view.GetWindowWidth() * 0.5;
     double half_height = (double)view.GetWindowHeight() * 0.5;
     std::vector<double> nodes;
-    utility::ConsoleProgressBar progress_bar((int64_t)input.size(),
-                                             "Cropping geometry: ");
+    utility::ProgressBar progress_bar((int64_t)input.size(),
+                                      "Cropping geometry: ");
     for (size_t k = 0; k < input.size(); k++) {
         ++progress_bar;
         const auto &point = input[k];

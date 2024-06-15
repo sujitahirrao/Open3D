@@ -1,31 +1,28 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #pragma once
 
+// If performing a debug build with VS2022 (_MSC_VER == 1930) we need to include
+// corecrt.h before pybind so that the _STL_ASSERT macro is defined in a
+// compatible way.
+//
+// pybind11/pybind11.h includes pybind11/detail/common.h, which undefines _DEBUG
+// whilst including the Python headers (which in turn include corecrt.h). This
+// alters how the _STL_ASSERT macro is defined and causes the build to fail.
+//
+// see https://github.com/microsoft/onnxruntime/issues/9735
+//     https://github.com/microsoft/onnxruntime/pull/11495
+//
+#if defined(_MSC_FULL_VER) && defined(_DEBUG) && _MSC_FULL_VER >= 192930145
+#include <corecrt.h>
+#endif
+
+#include <pybind11/detail/common.h>
 #include <pybind11/detail/internals.h>
 #include <pybind11/eigen.h>
 #include <pybind11/functional.h>
@@ -43,6 +40,9 @@
 // every compilation unit.
 #include "pybind/core/tensor_type_caster.h"
 
+// Replace with <pybind11/stl/filesystem.h> when we require C++17.
+#include "pybind_filesystem.h"
+
 namespace py = pybind11;
 using namespace py::literals;
 
@@ -51,6 +51,7 @@ typedef std::vector<Eigen::Matrix4d, open3d::utility::Matrix4d_allocator>
 typedef std::vector<Eigen::Vector4i, open3d::utility::Vector4i_allocator>
         temp_eigen_vector4i;
 
+PYBIND11_MAKE_OPAQUE(std::vector<char>);
 PYBIND11_MAKE_OPAQUE(std::vector<int>);
 PYBIND11_MAKE_OPAQUE(std::vector<int64_t>);
 PYBIND11_MAKE_OPAQUE(std::vector<uint8_t>);

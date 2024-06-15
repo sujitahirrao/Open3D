@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/visualization/gui/MenuImgui.h"
@@ -266,7 +247,7 @@ MenuBase::ItemId MenuImgui::Draw(const DrawContext &context,
     int width = padding + name_width + 2 * em + shortcut_width + 2 * em +
                 int(std::ceil(1.5 * em)) + padding;  // checkbox
 
-    ImGui::SetNextWindowContentWidth(float(width));
+    ImGui::SetNextWindowContentSize(ImVec2(float(width), 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
                         ImVec2(0, float(context.theme.default_margin)));
     ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding,
@@ -293,7 +274,7 @@ MenuBase::ItemId MenuImgui::Draw(const DrawContext &context,
                 // Save y position, then draw empty item for the highlight.
                 // Set the enabled flag, in case the real item isn't.
                 auto y = ImGui::GetCursorPosY();
-                if (ImGui::MenuItem("", "", false, item.is_enabled_)) {
+                if (ImGui::MenuItem(" ", "", false, item.is_enabled_)) {
                     activate_id = item.id_;
                 }
                 // Restore the y position, and draw the menu item with the

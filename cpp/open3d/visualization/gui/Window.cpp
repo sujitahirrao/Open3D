@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/visualization/gui/Window.h"
@@ -218,6 +199,7 @@ struct Window::Impl {
     std::unordered_map<Menu::ItemId, std::function<void()>> menu_callbacks_;
     std::function<bool(void)> on_tick_event_;
     std::function<bool(void)> on_close_;
+    std::function<bool(const KeyEvent&)> on_key_event_;
     // We need these for mouse moves and wheel events.
     // The only source of ground truth is button events, so the rest of
     // the time we monitor key up/down events.
@@ -630,6 +612,10 @@ void Window::SetOnClose(std::function<bool()> callback) {
     impl_->on_close_ = callback;
 }
 
+void Window::SetOnKeyEvent(std::function<bool(const KeyEvent&)> callback) {
+    impl_->on_key_event_ = callback;
+}
+
 void Window::ShowDialog(std::shared_ptr<Dialog> dlg) {
     if (impl_->active_dialog_) {
         CloseDialog();
@@ -721,7 +707,7 @@ Widget::DrawResult DrawChild(DrawContext& dc,
                              const char* name,
                              std::shared_ptr<Widget> child,
                              Mode mode) {
-    // Note: ImGUI's concept of a "window" is really a moveable child of the
+    // Note: ImGUI's concept of a "window" is really a movable child of the
     //       OS window. We want a child to act like a child of the OS window,
     //       like native UI toolkits, Qt, etc. So the top-level widgets of
     //       a window are drawn using ImGui windows whose frame is specified
@@ -1103,7 +1089,8 @@ void Window::OnMouseEvent(const MouseEvent& e) {
     if (e.type == MouseEvent::BUTTON_DOWN || e.type == MouseEvent::BUTTON_UP) {
         ImGuiContext* context = ImGui::GetCurrentContext();
         for (auto* w : context->Windows) {
-            if (!w->Hidden && w->Flags & ImGuiWindowFlags_Popup) {
+            if (w->Flags & ImGuiWindowFlags_Popup &&
+                ImGui::IsPopupOpen(w->PopupId, 0)) {
                 Rect r(int(w->Pos.x), int(w->Pos.y), int(w->Size.x),
                        int(w->Size.y));
                 if (r.Contains(e.x, e.y)) {
@@ -1192,8 +1179,13 @@ void Window::OnKeyEvent(const KeyEvent& e) {
 
     // If an ImGUI widget is not getting keystrokes, we can send them to
     // non-ImGUI widgets
-    if (ImGui::GetCurrentContext()->ActiveId == 0 && impl_->focus_widget_) {
-        impl_->focus_widget_->Key(e);
+    if (ImGui::GetCurrentContext()->ActiveId == 0) {
+        // dispatch key event to focused widget if not intercepted
+        if (!impl_->on_key_event_ || !impl_->on_key_event_(e)) {
+            if (impl_->focus_widget_) {
+                impl_->focus_widget_->Key(e);
+            }
+        }
     }
 
     RestoreDrawContext(old_context);

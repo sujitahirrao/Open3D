@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #pragma once
@@ -42,8 +23,9 @@ class Image;
 
 namespace t {
 namespace geometry {
+class Geometry;
 class PointCloud;
-}
+}  // namespace geometry
 }  // namespace t
 
 namespace visualization {
@@ -52,7 +34,7 @@ namespace rendering {
 class Renderer;
 class View;
 struct TriangleMeshModel;
-struct Material;
+struct MaterialRecord;
 struct Light;
 
 // Contains renderable objects like geometry and lights
@@ -91,12 +73,12 @@ public:
     // Scene geometry
     virtual bool AddGeometry(const std::string& object_name,
                              const geometry::Geometry3D& geometry,
-                             const Material& material,
+                             const MaterialRecord& material,
                              const std::string& downsampled_name = "",
                              size_t downsample_threshold = SIZE_MAX) = 0;
     virtual bool AddGeometry(const std::string& object_name,
-                             const t::geometry::PointCloud& point_cloud,
-                             const Material& material,
+                             const t::geometry::Geometry& geometry,
+                             const MaterialRecord& material,
                              const std::string& downsampled_name = "",
                              size_t downsample_threshold = SIZE_MAX) = 0;
     virtual bool AddGeometry(const std::string& object_name,
@@ -109,7 +91,7 @@ public:
     virtual void ShowGeometry(const std::string& object_name, bool show) = 0;
     virtual bool GeometryIsVisible(const std::string& object_name) = 0;
     virtual void OverrideMaterial(const std::string& object_name,
-                                  const Material& material) = 0;
+                                  const MaterialRecord& material) = 0;
     virtual void GeometryShadows(const std::string& object_name,
                                  bool cast_shadows,
                                  bool receive_shadows) = 0;
@@ -123,7 +105,7 @@ public:
     virtual Transform GetGeometryTransform(const std::string& object_name) = 0;
     virtual geometry::AxisAlignedBoundingBox GetGeometryBoundingBox(
             const std::string& object_name) = 0;
-    virtual void OverrideMaterialAll(const Material& material,
+    virtual void OverrideMaterialAll(const MaterialRecord& material,
                                      bool shader_only = true) = 0;
 
     // Lighting Environment

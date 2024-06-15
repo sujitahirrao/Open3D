@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/visualization/utility/SelectionPolygonVolume.h"
@@ -31,6 +12,7 @@
 #include "open3d/geometry/PointCloud.h"
 #include "open3d/geometry/TriangleMesh.h"
 #include "open3d/utility/Logging.h"
+#include "open3d/utility/ProgressBar.h"
 
 namespace open3d {
 namespace visualization {
@@ -123,6 +105,11 @@ SelectionPolygonVolume::CropTriangleMeshInPolygon(
 }
 
 std::vector<size_t> SelectionPolygonVolume::CropInPolygon(
+        const geometry::PointCloud &input) const {
+    return CropInPolygon(input.points_);
+}
+
+std::vector<size_t> SelectionPolygonVolume::CropInPolygon(
         const std::vector<Eigen::Vector3d> &input) const {
     std::vector<size_t> output_index;
     int u, v, w;
@@ -140,8 +127,8 @@ std::vector<size_t> SelectionPolygonVolume::CropInPolygon(
         w = 2;
     }
     std::vector<double> nodes;
-    utility::ConsoleProgressBar progress_bar((int64_t)input.size(),
-                                             "Cropping geometry: ");
+    utility::ProgressBar progress_bar((int64_t)input.size(),
+                                      "Cropping geometry: ");
     for (size_t k = 0; k < input.size(); k++) {
         ++progress_bar;
         const auto &point = input[k];

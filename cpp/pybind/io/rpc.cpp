@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/io/rpc/BufferConnection.h"
@@ -111,21 +92,43 @@ A connection writing to a memory buffer.
                      "the connection."},
             });
 
-    m.def("set_triangle_mesh", &rpc::SetTriangleMesh, "mesh"_a, "path"_a = "",
-          "time"_a = 0, "layer"_a = "",
+    m.def("set_triangle_mesh",
+          py::overload_cast<const geometry::TriangleMesh&, const std::string&,
+                            int, const std::string&,
+                            std::shared_ptr<rpc::ConnectionBase>>(
+                  &rpc::SetTriangleMesh),
+          "mesh"_a, "path"_a = "", "time"_a = 0, "layer"_a = "",
           "connection"_a = std::shared_ptr<rpc::ConnectionBase>(),
-          "Sends a point cloud message to a viewer.");
-    docstring::FunctionDocInject(
-            m, "set_triangle_mesh",
-            {
-                    {"mesh", "The TriangleMesh object."},
-                    {"path", "A path descriptor, e.g., 'mygroup/mesh'."},
-                    {"time", "The time associated with this data."},
-                    {"layer", "The layer associated with this data."},
-                    {"connection",
-                     "A Connection object. Use None to automatically create "
-                     "the connection."},
-            });
+          R"doc(Sends a triangle mesh to a viewer.
+Args:
+    mesh (o3d.geometry.TriangleMesh): The triangle mesh.
+    path (str): The path in the scene graph.
+    time (int): The time associated with the data.
+    layer (str): A layer name that can be used by receivers that support layers.
+    connection (o3d.io.rpc.Connection): A connection object that will be used for sending the data.
+
+Returns:
+    Returns True if the data was successfully received.
+)doc");
+
+    m.def("set_triangle_mesh",
+          py::overload_cast<const t::geometry::TriangleMesh&,
+                            const std::string&, int, const std::string&,
+                            std::shared_ptr<rpc::ConnectionBase>>(
+                  &rpc::SetTriangleMesh),
+          "mesh"_a, "path"_a = "", "time"_a = 0, "layer"_a = "",
+          "connection"_a = std::shared_ptr<rpc::ConnectionBase>(),
+          R"doc(Sends a triangle mesh to a viewer.
+Args:
+    mesh (o3d.t.geometry.TriangleMesh): The triangle mesh.
+    path (str): The path in the scene graph.
+    time (int): The time associated with the data.
+    layer (str): A layer name that can be used by receivers that support layers.
+    connection (o3d.io.rpc.Connection): A connection object that will be used for sending the data.
+
+Returns:
+    Returns True if the data was successfully received.
+)doc");
 
     m.def("set_mesh_data", &rpc::SetMeshData, "path"_a = "", "time"_a = 0,
           "layer"_a = "", "vertices"_a = core::Tensor({0}, core::Float32),
@@ -134,8 +137,12 @@ A connection writing to a memory buffer.
           "face_attributes"_a = std::map<std::string, core::Tensor>(),
           "lines"_a = core::Tensor({0}, core::Int32),
           "line_attributes"_a = std::map<std::string, core::Tensor>(),
-          "textures"_a = std::map<std::string, core::Tensor>(),
-          "o3d_type"_a = std::string(),
+          "material"_a = "",
+          "material_scalar_attributes"_a = std::map<std::string, float>(),
+          "material_vector_attributes"_a =
+                  std::map<std::string, Eigen::Vector4f>(),
+          "texture_maps"_a = std::map<std::string, t::geometry::Image>(),
+          "o3d_type"_a = "",
           "connection"_a = std::shared_ptr<rpc::ConnectionBase>(),
           "Sends a set_mesh_data message.");
     docstring::FunctionDocInject(
@@ -153,13 +160,22 @@ A connection writing to a memory buffer.
                     {"lines", "Tensor defining lines with vertex indices."},
                     {"line_attributes",
                      "dict of Tensors with line attributes."},
-                    {"textures", "dict of Tensors with textures."},
-                    {"o3d_type", R"doc(The type of the geometry. This is one of 
-"PointCloud", "LineSet", "TriangleMesh".
-This argument should be specified for partial
-data that has no primary key data, e.g., a triangle
-mesh without vertices but with other attribute
-tensors.)doc"},
+                    {"material",
+                     "Basic Material for geometry drawing.  Must be non-empty "
+                     "if any material attributes or texture maps are "
+                     "provided."},
+                    {"material_scalar_attributes",
+                     "dict of material scalar attributes for geometry drawing "
+                     "(e.g. ``point_size``, ``line_width`` or "
+                     "``base_reflectance``)."},
+                    {"material_vector_attributes",
+                     "dict of material Vector4f attributes for geometry "
+                     "drawing (e.g. ``base_color`` or ``absorption_color``)"},
+                    {"texture_maps", "dict of Images with textures."},
+                    {"o3d_type", R"doc(The type of the geometry. This is one of
+        ``PointCloud``, ``LineSet``, ``TriangleMesh``.  This argument should be
+        specified for partial data that has no primary key data, e.g., a
+        triangle mesh without vertices but with other attribute tensors.)doc"},
                     {"connection",
                      "A Connection object. Use None to automatically create "
                      "the connection."},

@@ -1,30 +1,15 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #pragma once
+
+#include "open3d/t/geometry/LineSet.h"
+#include "open3d/t/geometry/PointCloud.h"
+#include "open3d/t/geometry/TriangleMesh.h"
 
 // clang-format off
 // NOTE: This header must precede the Filament headers otherwise a conflict
@@ -41,6 +26,9 @@
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable : 4068 4146 4293)
+// Filament uses OPAQUE and TRANSPARENT as enums which conflicts with windows.h
+#undef OPAQUE
+#undef TRANSPARENT
 #endif // _MSC_VER
 
 #include <filament/Box.h>
@@ -63,12 +51,6 @@ class PointCloud;
 class TriangleMesh;
 }  // namespace geometry
 
-namespace t {
-namespace geometry {
-class PointCloud;
-}
-}  // namespace t
-
 namespace visualization {
 namespace rendering {
 
@@ -85,7 +67,7 @@ public:
     static std::unique_ptr<GeometryBuffersBuilder> GetBuilder(
             const geometry::Geometry3D& geometry);
     static std::unique_ptr<GeometryBuffersBuilder> GetBuilder(
-            const t::geometry::PointCloud& geometry);
+            const t::geometry::Geometry& geometry);
 
     virtual ~GeometryBuffersBuilder() = default;
 
@@ -150,20 +132,6 @@ private:
     const geometry::PointCloud& geometry_;
 };
 
-class TPointCloudBuffersBuilder : public GeometryBuffersBuilder {
-public:
-    explicit TPointCloudBuffersBuilder(const t::geometry::PointCloud& geometry);
-
-    filament::RenderableManager::PrimitiveType GetPrimitiveType()
-            const override;
-
-    Buffers ConstructBuffers() override;
-    filament::Box ComputeAABB() override;
-
-private:
-    const t::geometry::PointCloud& geometry_;
-};
-
 class LineSetBuffersBuilder : public GeometryBuffersBuilder {
 public:
     explicit LineSetBuffersBuilder(const geometry::LineSet& geometry);
@@ -178,6 +146,62 @@ private:
     Buffers ConstructThinLines();
 
     const geometry::LineSet& geometry_;
+};
+
+class TMeshBuffersBuilder : public GeometryBuffersBuilder {
+public:
+    explicit TMeshBuffersBuilder(const t::geometry::TriangleMesh& geometry);
+
+    filament::RenderableManager::PrimitiveType GetPrimitiveType()
+            const override;
+
+    Buffers ConstructBuffers() override;
+    filament::Box ComputeAABB() override;
+
+private:
+    t::geometry::TriangleMesh geometry_;
+};
+
+class TPointCloudBuffersBuilder : public GeometryBuffersBuilder {
+public:
+    explicit TPointCloudBuffersBuilder(const t::geometry::PointCloud& geometry);
+
+    filament::RenderableManager::PrimitiveType GetPrimitiveType()
+            const override;
+
+    Buffers ConstructBuffers() override;
+    filament::Box ComputeAABB() override;
+
+private:
+    t::geometry::PointCloud geometry_;
+};
+
+class TLineSetBuffersBuilder : public GeometryBuffersBuilder {
+public:
+    explicit TLineSetBuffersBuilder(const t::geometry::LineSet& geometry);
+
+    filament::RenderableManager::PrimitiveType GetPrimitiveType()
+            const override;
+
+    Buffers ConstructBuffers() override;
+    filament::Box ComputeAABB() override;
+
+private:
+    /// Utility function for building GPU assets needed for rendering lines as
+    /// lines. Used for 'thin' lines.
+    void ConstructThinLines(uint32_t& n_vertices,
+                            float** vertex_data,
+                            uint32_t& n_indices,
+                            uint32_t& indices_bytes,
+                            uint32_t** line_indices);
+    /// Utility method for building GPU assets needed for rendering wide lines
+    /// which are rendered as pairs of triangles per line
+    void ConstructWideLines(uint32_t& n_vertices,
+                            float** vertex_data,
+                            uint32_t& n_indices,
+                            uint32_t& indices_bytes,
+                            uint32_t** line_indices);
+    t::geometry::LineSet geometry_;
 };
 
 }  // namespace rendering

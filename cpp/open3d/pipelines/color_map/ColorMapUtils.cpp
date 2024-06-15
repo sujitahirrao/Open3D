@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/pipelines/color_map/ColorMapUtils.h"
@@ -60,19 +41,22 @@ static std::tuple<bool, T> QueryImageIntensity(
         const camera::PinholeCameraParameters& camera_parameter,
         utility::optional<int> channel,
         int image_boundary_margin) {
-    float u, v, depth;
+    // We use double here for u, v such that it is consistent with 0.12 release
+    // numerically, since double->float->int can be different from double->int.
+    double u, v, depth;
     std::tie(u, v, depth) = Project3DPointAndGetUVDepth(V, camera_parameter);
+
     // TODO: check why we use the u, ve before warpping for TestImageBoundary.
     if (img.TestImageBoundary(u, v, image_boundary_margin)) {
         if (optional_warping_field.has_value()) {
             Eigen::Vector2d uv_shift =
                     optional_warping_field.value().GetImageWarpingField(u, v);
-            u = static_cast<float>(uv_shift(0));
-            v = static_cast<float>(uv_shift(1));
+            u = uv_shift(0);
+            v = uv_shift(1);
         }
         if (img.TestImageBoundary(u, v, image_boundary_margin)) {
-            int u_round = int(u);
-            int v_round = int(v);
+            int u_round = int(round(u));
+            int v_round = int(round(v));
             if (channel.has_value()) {
                 return std::make_tuple(
                         true,
@@ -156,7 +140,8 @@ CreateVertexAndImageVisibility(
             float u, v, d;
             std::tie(u, v, d) = Project3DPointAndGetUVDepth(
                     X, camera_trajectory.parameters_[camera_id]);
-            int u_d = int(round(u)), v_d = int(round(v));
+            int u_d = int(round(u));
+            int v_d = int(round(v));
             // Skip if vertex in image boundary.
             if (d < 0.0 ||
                 !images_depth[camera_id].TestImageBoundary(u_d, v_d)) {

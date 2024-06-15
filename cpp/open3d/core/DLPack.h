@@ -1,30 +1,11 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 //
-// This file is retrived from:
+// This file is retrieved from:
 // https://github.com/dmlc/dlpack/blob/master/include/dlpack/dlpack.h
 // Commit: 3ec0443, Feb 16 2020
 //
@@ -207,4 +188,56 @@ typedef struct DLManagedTensor {
 #ifdef __cplusplus
 }  // DLPACK_EXTERN_C
 #endif
+
+#include <fmt/core.h>
+#include <fmt/format.h>
+
+namespace fmt {
+
+template <>
+struct formatter<DLDeviceType> {
+    template <typename FormatContext>
+    auto format(const DLDeviceType& c, FormatContext& ctx) const
+            -> decltype(ctx.out()) {
+        const char* text = nullptr;
+        switch (c) {
+            case kDLCPU:
+                text = "kDLCPU";
+                break;
+            case kDLGPU:
+                text = "kDLGPU";
+                break;
+            case kDLCPUPinned:
+                text = "kDLCPUPinned";
+                break;
+            case kDLOpenCL:
+                text = "kDLOpenCL";
+                break;
+            case kDLVulkan:
+                text = "kDLVulkan";
+                break;
+            case kDLMetal:
+                text = "kDLMetal";
+                break;
+            case kDLVPI:
+                text = "kDLVPI";
+                break;
+            case kDLROCM:
+                text = "kDLROCM";
+                break;
+            case kDLExtDev:
+                text = "kDLExtDev";
+                break;
+        }
+        return format_to(ctx.out(), text);
+    }
+
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx) -> decltype(ctx.begin()) {
+        return ctx.begin();
+    }
+};
+
+}  // namespace fmt
+
 #endif  // DLPACK_DLPACK_H_

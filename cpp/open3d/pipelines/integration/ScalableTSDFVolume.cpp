@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/pipelines/integration/ScalableTSDFVolume.h"
@@ -65,15 +46,13 @@ void ScalableTSDFVolume::Integrate(
          image.color_.num_of_channels_ != 1) ||
         (color_type_ == TSDFVolumeColorType::Gray32 &&
          image.color_.bytes_per_channel_ != 4)) {
-        utility::LogError(
-                "[ScalableTSDFVolume::Integrate] Unsupported image format.");
+        utility::LogError("Unsupported image format.");
     }
     if ((image.depth_.width_ != intrinsic.width_) ||
         (image.depth_.height_ != intrinsic.height_)) {
         utility::LogError(
-                "[ScalableTSDFVolume::Integrate] depth image size is ({} x "
-                "{}), "
-                "but got ({} x {}) from intrinsic.",
+                "Depth image size is ({} x {}), but got ({} x {}) from "
+                "intrinsic.",
                 image.depth_.width_, image.depth_.height_, intrinsic.width_,
                 intrinsic.height_);
     }
@@ -81,9 +60,8 @@ void ScalableTSDFVolume::Integrate(
         (image.color_.width_ != intrinsic.width_ ||
          image.color_.height_ != intrinsic.height_)) {
         utility::LogError(
-                "[ScalableTSDFVolume::Integrate] color image size is ({} x "
-                "{}), "
-                "but got ({} x {}) from intrinsic.",
+                "Color image size is ({} x {}), but got ({} x {}) from "
+                "intrinsic.",
                 image.color_.width_, image.color_.height_, intrinsic.width_,
                 intrinsic.height_);
     }
@@ -123,7 +101,7 @@ std::shared_ptr<geometry::PointCloud> ScalableTSDFVolume::ExtractPointCloud() {
     auto pointcloud = std::make_shared<geometry::PointCloud>();
     double half_voxel_length = voxel_length_ * 0.5;
     float w0, w1, f0, f1;
-    Eigen::Vector3f c0, c1;
+    Eigen::Vector3f c0{0.0, 0.0, 0.0}, c1{0.0, 0.0, 0.0};
     for (const auto &unit : volume_units_) {
         if (unit.second.volume_) {
             const auto &volume0 = *unit.second.volume_;

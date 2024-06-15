@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include <cstdlib>
@@ -30,9 +11,6 @@
 #include "open3d/utility/FileSystem.h"
 
 using namespace open3d;
-
-// TODO: remove hard-coded path.
-const std::string TEST_DIR = "../../../examples/test_data";
 
 // Create and add a window to gui::Application, but do not run it yet.
 void AddDrawWindow(
@@ -84,7 +62,8 @@ void EmptyBox() {
             [](visualization::visualizer::O3DVisualizer &o3dvis) {
                 utility::LogInfo("new_window_action called");
                 auto mesh = std::make_shared<geometry::TriangleMesh>();
-                io::ReadTriangleMesh(TEST_DIR + "/knot.ply", *mesh);
+                data::KnotMesh knot_data;
+                io::ReadTriangleMesh(knot_data.GetPath(), *mesh);
                 mesh->ComputeVertexNormals();
                 AddDrawWindow({mesh}, "Open3D pcd", 640, 480);
             };
@@ -129,12 +108,6 @@ void BoxWithObjects() {
 }
 
 int main(int argc, char **argv) {
-    if (!utility::filesystem::DirectoryExists(TEST_DIR)) {
-        utility::LogError(
-                "This example needs to be run from the build directory, "
-                "test_dir: {}",
-                TEST_DIR);
-    }
     visualization::webrtc_server::WebRTCWindowSystem::GetInstance()
             ->EnableWebRTC();
 

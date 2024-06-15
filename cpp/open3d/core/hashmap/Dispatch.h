@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #pragma once
@@ -30,47 +11,52 @@
 #include "open3d/utility/Logging.h"
 #include "open3d/utility/MiniVec.h"
 
+#define INSTANTIATE_TYPES(DTYPE, DIM)                \
+    using key_t = utility::MiniVec<DTYPE, DIM>;      \
+    using hash_t = utility::MiniVecHash<DTYPE, DIM>; \
+    using eq_t = utility::MiniVecEq<DTYPE, DIM>;
+
+#define DIM_SWITCHER(DTYPE, DIM, ...)                                    \
+    if (DIM == 1) {                                                      \
+        INSTANTIATE_TYPES(DTYPE, 1)                                      \
+        return __VA_ARGS__();                                            \
+    } else if (DIM == 2) {                                               \
+        INSTANTIATE_TYPES(DTYPE, 2)                                      \
+        return __VA_ARGS__();                                            \
+    } else if (DIM == 3) {                                               \
+        INSTANTIATE_TYPES(DTYPE, 3)                                      \
+        return __VA_ARGS__();                                            \
+    } else if (DIM == 4) {                                               \
+        INSTANTIATE_TYPES(DTYPE, 4)                                      \
+        return __VA_ARGS__();                                            \
+    } else if (DIM == 5) {                                               \
+        INSTANTIATE_TYPES(DTYPE, 5)                                      \
+        return __VA_ARGS__();                                            \
+    } else if (DIM == 6) {                                               \
+        INSTANTIATE_TYPES(DTYPE, 6)                                      \
+        return __VA_ARGS__();                                            \
+    } else {                                                             \
+        utility::LogError(                                               \
+                "Unsupported dim {}, please modify {} and compile from " \
+                "source",                                                \
+                DIM, __FILE__);                                          \
+    }
+
 // TODO: dispatch more combinations.
-#define DISPATCH_DTYPE_AND_DIM_TO_TEMPLATE(DTYPE, DIM, ...)                  \
-    [&] {                                                                    \
-        if (DTYPE == open3d::core::Int32) {                                  \
-            if (DIM == 1) {                                                  \
-                using key_t = utility::MiniVec<int, 1>;                      \
-                using hash_t = utility::MiniVecHash<int, 1>;                 \
-                using eq_t = utility::MiniVecEq<int, 1>;                     \
-                return __VA_ARGS__();                                        \
-            } else if (DIM == 2) {                                           \
-                using key_t = utility::MiniVec<int, 2>;                      \
-                using hash_t = utility::MiniVecHash<int, 2>;                 \
-                using eq_t = utility::MiniVecEq<int, 2>;                     \
-                return __VA_ARGS__();                                        \
-            } else if (DIM == 3) {                                           \
-                using key_t = utility::MiniVec<int, 3>;                      \
-                using hash_t = utility::MiniVecHash<int, 3>;                 \
-                using eq_t = utility::MiniVecEq<int, 3>;                     \
-                return __VA_ARGS__();                                        \
-            }                                                                \
-        } else if (DTYPE == open3d::core::Int64) {                           \
-            if (DIM == 1) {                                                  \
-                using key_t = utility::MiniVec<int64_t, 1>;                  \
-                using hash_t = utility::MiniVecHash<int64_t, 1>;             \
-                using eq_t = utility::MiniVecEq<int64_t, 1>;                 \
-                return __VA_ARGS__();                                        \
-            } else if (DIM == 2) {                                           \
-                using key_t = utility::MiniVec<int64_t, 2>;                  \
-                using hash_t = utility::MiniVecHash<int64_t, 2>;             \
-                using eq_t = utility::MiniVecEq<int64_t, 2>;                 \
-                return __VA_ARGS__();                                        \
-            } else if (DIM == 3) {                                           \
-                using key_t = utility::MiniVec<int64_t, 3>;                  \
-                using hash_t = utility::MiniVecHash<int64_t, 3>;             \
-                using eq_t = utility::MiniVecEq<int64_t, 3>;                 \
-                return __VA_ARGS__();                                        \
-            }                                                                \
-        } else {                                                             \
-            utility::LogError("Unsupported dtype {} and dim {} combination", \
-                              DTYPE.ToString(), DIM);                        \
-        }                                                                    \
+#define DISPATCH_DTYPE_AND_DIM_TO_TEMPLATE(DTYPE, DIM, ...)                   \
+    [&] {                                                                     \
+        if (DTYPE == open3d::core::Int64) {                                   \
+            DIM_SWITCHER(int64_t, DIM, __VA_ARGS__)                           \
+        } else if (DTYPE == open3d::core::Int32) {                            \
+            DIM_SWITCHER(int, DIM, __VA_ARGS__)                               \
+        } else if (DTYPE == open3d::core::Int16) {                            \
+            DIM_SWITCHER(short, DIM, __VA_ARGS__)                             \
+        } else {                                                              \
+            utility::LogError(                                                \
+                    "Unsupported dtype {}, please use integer types (Int64, " \
+                    "Int32, Int16).",                                         \
+                    DTYPE.ToString());                                        \
+        }                                                                     \
     }()
 
 #ifdef __CUDACC__

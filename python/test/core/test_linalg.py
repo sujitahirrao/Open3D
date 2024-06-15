@@ -1,36 +1,18 @@
 # ----------------------------------------------------------------------------
 # -                        Open3D: www.open3d.org                            -
 # ----------------------------------------------------------------------------
-# The MIT License (MIT)
-#
-# Copyright (c) 2018-2021 www.open3d.org
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-# IN THE SOFTWARE.
+# Copyright (c) 2018-2023 www.open3d.org
+# SPDX-License-Identifier: MIT
 # ----------------------------------------------------------------------------
 
+import os
+import sys
+
+import numpy as np
 import open3d as o3d
 import open3d.core as o3c
-import numpy as np
 import pytest
 
-import sys
-import os
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/..")
 from open3d_test import list_devices
 
@@ -78,6 +60,76 @@ def test_matmul(device, dtype):
         b = o3c.Tensor.zeros((3, 7), dtype=dtype)
         c = a @ b
         assert 'mismatch with' in str(excinfo.value)
+
+    for shapes in [((0, 0), (0, 0)), ((2, 0), (0, 3)), ((0, 2), (2, 0)),
+                   ((2, 0), (0, 0))]:
+        with pytest.raises(RuntimeError) as excinfo:
+            a_shape, b_shape = shapes
+            a = o3c.Tensor.zeros(a_shape, dtype=dtype, device=device)
+            b = o3c.Tensor.zeros(b_shape, dtype=dtype, device=device)
+            c = a @ b
+            assert 'dimensions with zero' in str(excinfo.value)
+
+
+@pytest.mark.parametrize("device", list_devices())
+@pytest.mark.parametrize("dtype", [o3c.float32, o3c.float64])
+def test_addmm(device, dtype):
+    # Shape takes tuple, list or o3c.SizeVector
+    a = o3c.Tensor([[1, 2.5, 3], [4, 5, 6.2]], dtype=dtype, device=device)
+    b = o3c.Tensor([[7.5, 8, 9, 10], [11, 12, 13, 14], [15, 16, 17.8, 18]],
+                   dtype=dtype,
+                   device=device)
+    input = o3c.Tensor.ones((2, 4), dtype=dtype, device=device)
+    alpha = 1.0
+    beta = 1.0
+    c = o3c.addmm(input, a, b, alpha, beta)
+    # c = o3c.matmul(a, b)
+    assert c.shape == o3c.SizeVector([2, 4])
+
+    c_numpy = alpha * a.cpu().numpy() @ b.cpu().numpy() + beta * input.cpu(
+    ).numpy()
+    np.testing.assert_allclose(c.cpu().numpy(), c_numpy, 1e-6)
+
+    # Non-contiguous test
+    a = a[:, 1:]
+    b = b[[0, 2], :]
+    c = o3c.addmm(input, a, b, alpha, beta)
+    # c = a.matmul(b)
+    assert c.shape == o3c.SizeVector([2, 4])
+
+    c_numpy = alpha * a.cpu().numpy() @ b.cpu().numpy() + beta * input.cpu(
+    ).numpy()
+    np.testing.assert_allclose(c.cpu().numpy(), c_numpy, 1e-6)
+
+    # Incompatible shape test
+    with pytest.raises(RuntimeError) as excinfo:
+        a = o3c.Tensor.zeros((3, 4, 5), dtype=dtype)
+        b = o3c.Tensor.zeros((4, 5), dtype=dtype)
+        input = o3c.Tensor.zeros((3, 5), dtype=dtype)
+        c = o3c.addmm(input, a, b, alpha, beta)
+        assert 'Tensor A must be 2D' in str(excinfo.value)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        a = o3c.Tensor.zeros((3, 4), dtype=dtype)
+        b = o3c.Tensor.zeros((4, 5, 6), dtype=dtype)
+        input = o3c.Tensor.zeros((3, 5), dtype=dtype)
+        c = o3c.addmm(input, a, b, alpha, beta)
+        assert 'Tensor B must be 1D (vector) or 2D (matrix)' in str(
+            excinfo.value)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        a = o3c.Tensor.zeros((3, 4), dtype=dtype)
+        b = o3c.Tensor.zeros((3, 7), dtype=dtype)
+        input = o3c.Tensor.zeros((3, 5), dtype=dtype)
+        c = o3c.addmm(input, a, b, alpha, beta)
+        assert 'mismatch with' in str(excinfo.value)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        a = o3c.Tensor.zeros((3, 4), dtype=dtype)
+        b = o3c.Tensor.zeros((4, 5), dtype=dtype)
+        input = o3c.Tensor.zeros((3, 7), dtype=dtype)
+        c = o3c.addmm(input, a, b, alpha, beta)
+        assert 'Cannot expand shape' in str(excinfo.value)
 
     for shapes in [((0, 0), (0, 0)), ((2, 0), (0, 3)), ((0, 2), (2, 0)),
                    ((2, 0), (0, 0))]:

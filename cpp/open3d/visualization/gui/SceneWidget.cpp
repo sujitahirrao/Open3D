@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/visualization/gui/SceneWidget.h"
@@ -488,8 +469,7 @@ private:
         if (win_z < far_z) {
             auto vp = scene_->GetView()->GetViewport();
             auto point = scene_->GetCamera()->Unproject(
-                    float(x), float(vp[3] - y), win_z, float(vp[2]),
-                    float(vp[3]));
+                    float(x), float(y), win_z, float(vp[2]), float(vp[3]));
             SetCenterOfRotation(point);
             interactor_->Rotate(0, 0);  // update now
         }
@@ -824,7 +804,7 @@ SceneWidget::~SceneWidget() {
 
 void SceneWidget::SetFrame(const Rect& f) {
     // Early exit if frame hasn't changed because changing frame size causes GPU
-    // memory re-allocations that are best avoided if unecessary
+    // memory re-allocations that are best avoided if unnecessary
     auto old_frame = GetFrame();
     if (f.width == old_frame.width && f.height == old_frame.height) return;
 
@@ -1157,13 +1137,15 @@ Widget::DrawResult SceneWidget::Draw(const DrawContext& context) {
             ndc *= 0.5f;
             ndc.x() *= f.width;
             ndc.y() *= f.height;
+            ImGui::SetWindowFontScale(l->GetTextScale());
             ImGui::SetCursorScreenPos(
-                    ImVec2(ndc.x() - f.x, f.height - ndc.y() - f.y));
+                    ImVec2(ndc.x() + f.x, f.height - ndc.y() - f.y));
             auto color = l->GetTextColor();
             ImGui::TextColored({color.GetRed(), color.GetGreen(),
                                 color.GetBlue(), color.GetAlpha()},
                                "%s", l->GetText());
         }
+        ImGui::SetWindowFontScale(1.0);
     }
 
     // Draw any interactor UI
@@ -1173,8 +1155,9 @@ Widget::DrawResult SceneWidget::Draw(const DrawContext& context) {
         for (size_t i = 0; i < impl_->ui_lines_.size() - 1; i += 2) {
             auto& p0 = impl_->ui_lines_[i];
             auto& p1 = impl_->ui_lines_[i + 1];
-            draw_list->AddLine({float(p0.x()), float(p0.y())},
-                               {float(p1.x()), float(p1.y())}, ui_color, 2);
+            draw_list->AddLine({float(p0.x() + f.x), float(p0.y() + f.y)},
+                               {float(p1.x() + f.x), float(p1.y() + f.y)},
+                               ui_color, 2);
         }
     }
 

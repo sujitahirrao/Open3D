@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #pragma once
@@ -39,21 +20,23 @@ namespace impl {
 
 namespace {
 
-template <class T>
-using Vec3 = utility::MiniVec<T, 3>;
-
-template <int METRIC = L2, class T>
-inline __device__ T NeighborsDist(const Vec3<T> &p1, const Vec3<T> &p2) {
+template <int METRIC = L2, class T, int NDIM>
+inline __device__ T NeighborsDist(const utility::MiniVec<T, NDIM> &p1,
+                                  const utility::MiniVec<T, NDIM> &p2) {
     T dist;
     if (METRIC == Linf) {
-        Vec3<T> d = (p1 - p2).abs();
+        utility::MiniVec<T, NDIM> d = (p1 - p2).abs();
         dist = d[0] > d[1] ? d[0] : d[1];
-        dist = dist > d[2] ? dist : d[2];
+        for (int i = 2; i < NDIM; ++i) {
+            dist = dist > d[i] ? dist : d[i];
+        }
     } else if (METRIC == L1) {
-        Vec3<T> d = (p1 - p2).abs();
-        dist = (d[0] + d[1] + d[2]);
+        utility::MiniVec<T, NDIM> d = (p1 - p2).abs();
+        for (int i = 0; i < NDIM; ++i) {
+            dist += d[i];
+        }
     } else {
-        Vec3<T> d = p1 - p2;
+        utility::MiniVec<T, NDIM> d = p1 - p2;
         dist = d.dot(d);
     }
     return dist;
@@ -94,7 +77,7 @@ __device__ void HeapSort(T *dist, TIndex *idx, int k) {
     }
 }
 
-template <class T, class TIndex, int METRIC = L2>
+template <class T, class TIndex, int METRIC = L2, int NDIM>
 __global__ void KnnQueryKernel(TIndex *__restrict__ indices_ptr,
                                T *__restrict__ distances_ptr,
                                size_t num_points,
@@ -105,8 +88,9 @@ __global__ void KnnQueryKernel(TIndex *__restrict__ indices_ptr,
     int query_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (query_idx >= num_queries) return;
 
-    Vec3<T> query_pos(queries[query_idx * 3 + 0], queries[query_idx * 3 + 1],
-                      queries[query_idx * 3 + 2]);
+    typedef utility::MiniVec<T, NDIM> Vec_t;
+
+    Vec_t query_pos(queries + NDIM * query_idx);
 
     T best_dist[100];
     int best_idx[100];
@@ -117,9 +101,8 @@ __global__ void KnnQueryKernel(TIndex *__restrict__ indices_ptr,
     }
 
     for (int i = 0; i < num_points; i++) {
-        Vec3<T> dataset_pos(points[i * 3 + 0], points[i * 3 + 1],
-                            points[i * 3 + 2]);
-        T dist = NeighborsDist<METRIC, T>(query_pos, dataset_pos);
+        Vec_t dataset_pos(points + NDIM * i);
+        T dist = NeighborsDist<METRIC>(query_pos, dataset_pos);
         if (dist < best_dist[0]) {
             best_dist[0] = dist;
             best_idx[0] = i;
@@ -132,8 +115,9 @@ __global__ void KnnQueryKernel(TIndex *__restrict__ indices_ptr,
         distances_ptr[i + knn * query_idx] = best_dist[i];
     }
 }
+}  // namespace
 
-template <class T, class TIndex>
+template <class T, class TIndex, int NDIM>
 void KnnQuery(const cudaStream_t &stream,
               TIndex *indices_ptr,
               T *distances_ptr,
@@ -149,48 +133,9 @@ void KnnQuery(const cudaStream_t &stream,
     grid.x = utility::DivUp(num_queries, block.x);
 
     if (grid.x) {
-        KnnQueryKernel<T, TIndex><<<grid, block, 0, stream>>>(
+        KnnQueryKernel<T, TIndex, L2, NDIM><<<grid, block, 0, stream>>>(
                 indices_ptr, distances_ptr, num_points, points, num_queries,
                 queries, knn);
-    }
-}
-
-}  // namespace
-
-template <class T, class OUTPUT_ALLOCATOR>
-void KnnSearchCUDA(const cudaStream_t stream,
-                   size_t num_points,
-                   const T *const points,
-                   size_t num_queries,
-                   const T *const queries,
-                   size_t points_row_splits_size,
-                   const int64_t *const points_row_splits,
-                   size_t queries_row_splits_size,
-                   const int64_t *const queries_row_splits,
-                   int knn,
-                   OUTPUT_ALLOCATOR &output_allocator) {
-    const int batch_size = points_row_splits_size - 1;
-
-    const size_t num_indices = num_queries * knn;
-
-    int32_t *indices_ptr;
-    T *distances_ptr;
-
-    output_allocator.AllocIndices(&indices_ptr, num_indices);
-    output_allocator.AllocDistances(&distances_ptr, num_indices);
-
-    for (int i = 0; i < batch_size; ++i) {
-        const size_t num_queries_i =
-                queries_row_splits[i + 1] - queries_row_splits[i];
-        const size_t num_points_i =
-                points_row_splits[i + 1] - points_row_splits[i];
-
-        const T *const points_i = points + 3 * points_row_splits[i];
-        const T *const queries_i = queries + 3 * queries_row_splits[i];
-        int32_t *indices_ptr_i = indices_ptr + queries_row_splits[i] * knn;
-        T *distances_ptr_i = distances_ptr + queries_row_splits[i] * knn;
-        KnnQuery(stream, indices_ptr_i, distances_ptr_i, num_points_i, points_i,
-                 num_queries_i, queries_i, knn);
     }
 }
 

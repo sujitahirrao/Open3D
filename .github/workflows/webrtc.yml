@@ -1,4 +1,7 @@
-name: WebRTC build
+name: WebRTC
+permissions:
+  contents: write
+  actions: write
 
 on:
   workflow_dispatch:
@@ -12,6 +15,10 @@ on:
         required: false
         default: 'e1a98941d3ab10549be6d82d0686bb0fb91ec903' # Date: Wed Apr 7 21:35:29 2021 +0000
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   WEBRTC_COMMIT: ${{ github.event.inputs.webrtc_commit }}
   DEPOT_TOOLS_COMMIT: ${{ github.event.inputs.depot_tools_commit }}
@@ -23,25 +30,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macOS 10.15 build does not work on macOS 10.14 due to this issue:
-        # https://openradar.appspot.com/FB7647406
-        # macOS 10.14 build works on both 10.14 and 10.15
-        os: [ubuntu-18.04, macos-10.15]
+        os: [ubuntu-18.04, macos-11]
         GLIBCXX_USE_CXX11_ABI: [0, 1]
         exclude:
-          - os: macos-10.15
+          - os: macos-11
             GLIBCXX_USE_CXX11_ABI: 0
     env:
       GLIBCXX_USE_CXX11_ABI: ${{ matrix.GLIBCXX_USE_CXX11_ABI }}
 
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v2
-        with:
-          submodules: false
+        uses: actions/checkout@v4
 
       - name: Set up Python version
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: 3.8
 
@@ -62,18 +64,17 @@ jobs:
           build_webrtc
 
       - name: Upload WebRTC
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: webrtc_release
+          name: webrtc_release_${{ matrix.os }}
           path: |
                  webrtc_*.tar.gz
                  checksum_*.txt
           if-no-files-found: error
 
-
   Windows:
     # https://chromium.googlesource.com/chromium/src/+/HEAD/docs/windows_build_instructions.md
-    runs-on: windows-latest
+    runs-on: windows-2019
     env:
       WORK_DIR: "C:\\WebRTC"  # Not enough space in D:
       OPEN3D_DIR: "D:\\a\\open3d\\open3d"
@@ -83,14 +84,12 @@ jobs:
 
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v2
-        with:
-          submodules: false
+        uses: actions/checkout@v4
 
       - name: Set up Python version
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
-          python-version: 3.8
+          python-version: '3.8'
 
       - name: Disk space
         run: |
@@ -109,7 +108,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           echo "Get depot_tools"
           # Checkout to a specific version
-          # Ref: https://chromium.googlesource.com/chromium/src/+/master/docs/building_old_revisions.md
+          # Ref: https://chromium.googlesource.com/chromium/src/+/main/docs/building_old_revisions.md
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
           git -C depot_tools checkout $env:DEPOT_TOOLS_COMMIT
           $env:Path = (Get-Item depot_tools).FullName + ";" + $env:Path
@@ -171,9 +170,9 @@ jobs:
           cmake -E sha256sum webrtc_${env:WEBRTC_COMMIT_SHORT}_win.zip | Tee-Object -FilePath checksum_win.txt
 
       - name: Upload WebRTC
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: webrtc_release
+          name: webrtc_release_windows
           path: |
                  ${{ env.WORK_DIR }}/webrtc_*.zip
                  ${{ env.WORK_DIR }}/checksum_*.txt

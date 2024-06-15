@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/pipelines/registration/Registration.h"
@@ -29,9 +10,9 @@
 #include "open3d/geometry/KDTreeFlann.h"
 #include "open3d/geometry/PointCloud.h"
 #include "open3d/pipelines/registration/Feature.h"
-#include "open3d/utility/Helper.h"
 #include "open3d/utility/Logging.h"
 #include "open3d/utility/Parallel.h"
+#include "open3d/utility/Random.h"
 
 namespace open3d {
 namespace pipelines {
@@ -87,33 +68,25 @@ static RegistrationResult GetRegistrationResultAndCorrespondences(
     return result;
 }
 
-static RegistrationResult EvaluateRANSACBasedOnCorrespondence(
+static double EvaluateInlierCorrespondenceRatio(
         const geometry::PointCloud &source,
         const geometry::PointCloud &target,
         const CorrespondenceSet &corres,
         double max_correspondence_distance,
         const Eigen::Matrix4d &transformation) {
     RegistrationResult result(transformation);
-    double error2 = 0.0;
-    int good = 0;
+
+    int inlier_corres = 0;
     double max_dis2 = max_correspondence_distance * max_correspondence_distance;
     for (const auto &c : corres) {
         double dis2 =
                 (source.points_[c[0]] - target.points_[c[1]]).squaredNorm();
         if (dis2 < max_dis2) {
-            good++;
-            error2 += dis2;
-            result.correspondence_set_.push_back(c);
+            inlier_corres++;
         }
     }
-    if (good == 0) {
-        result.fitness_ = 0.0;
-        result.inlier_rmse_ = 0.0;
-    } else {
-        result.fitness_ = (double)good / (double)corres.size();
-        result.inlier_rmse_ = std::sqrt(error2 / (double)good);
-    }
-    return result;
+
+    return double(inlier_corres) / double(corres.size());
 }
 
 RegistrationResult EvaluateRegistration(
@@ -184,7 +157,6 @@ RegistrationResult RegistrationICP(
         result = GetRegistrationResultAndCorrespondences(
                 pcd, target, kdtree, max_correspondence_distance,
                 transformation);
-
         if (std::abs(backup.fitness_ - result.fitness_) <
                     criteria.relative_fitness_ &&
             std::abs(backup.inlier_rmse_ - result.inlier_rmse_) <
@@ -206,31 +178,30 @@ RegistrationResult RegistrationRANSACBasedOnCorrespondence(
         const std::vector<std::reference_wrapper<const CorrespondenceChecker>>
                 &checkers /* = {}*/,
         const RANSACConvergenceCriteria &criteria
-        /* = RANSACConvergenceCriteria()*/,
-        utility::optional<unsigned int> seed /* = utility::nullopt*/) {
+        /* = RANSACConvergenceCriteria()*/) {
     if (ransac_n < 3 || (int)corres.size() < ransac_n ||
         max_correspondence_distance <= 0.0) {
         return RegistrationResult();
     }
 
     RegistrationResult best_result;
-    int exit_itr = -1;
+    geometry::KDTreeFlann kdtree(target);
+    int est_k_global = criteria.max_iteration_;
+    int total_validation = 0;
 
 #pragma omp parallel
     {
         CorrespondenceSet ransac_corres(ransac_n);
         RegistrationResult best_result_local;
-        int exit_itr_local = criteria.max_iteration_;
-        unsigned int seed_val =
-                seed.has_value() ? seed.value() : std::random_device{}();
-        utility::UniformRandIntGenerator rand_generator(
-                0, static_cast<int>(corres.size()) - 1, seed_val);
+        int est_k_local = criteria.max_iteration_;
+        utility::random::UniformIntGenerator<int> rand_gen(0,
+                                                           corres.size() - 1);
 
 #pragma omp for nowait
         for (int itr = 0; itr < criteria.max_iteration_; itr++) {
-            if (itr < exit_itr_local) {
+            if (itr < est_k_global) {
                 for (int j = 0; j < ransac_n; j++) {
-                    ransac_corres[j] = corres[rand_generator()];
+                    ransac_corres[j] = corres[rand_gen()];
                 }
 
                 Eigen::Matrix4d transformation =
@@ -248,119 +219,90 @@ RegistrationResult RegistrationRANSACBasedOnCorrespondence(
                 }
                 if (!check) continue;
 
+                // Expensive validation
                 geometry::PointCloud pcd = source;
                 pcd.Transform(transformation);
-                auto result = EvaluateRANSACBasedOnCorrespondence(
-                        pcd, target, corres, max_correspondence_distance,
+                auto result = GetRegistrationResultAndCorrespondences(
+                        pcd, target, kdtree, max_correspondence_distance,
                         transformation);
 
                 if (result.IsBetterRANSACThan(best_result_local)) {
                     best_result_local = result;
 
+                    double corres_inlier_ratio =
+                            EvaluateInlierCorrespondenceRatio(
+                                    pcd, target, corres,
+                                    max_correspondence_distance,
+                                    transformation);
+
                     // Update exit condition if necessary
-                    double exit_itr_d =
+                    double est_k_local_d =
                             std::log(1.0 - criteria.confidence_) /
-                            std::log(1.0 - std::pow(result.fitness_, ransac_n));
-                    exit_itr_local =
-                            exit_itr_d < double(criteria.max_iteration_)
-                                    ? static_cast<int>(std::ceil(exit_itr_d))
-                                    : exit_itr_local;
+                            std::log(1.0 -
+                                     std::pow(corres_inlier_ratio, ransac_n));
+                    // This prevents having a negative number of iterations:
+                    // est_k_local_d = -inf if corres_inlier_ratio = 0.0
+                    est_k_local_d =
+                            est_k_local_d < 0 ? est_k_local : est_k_local_d;
+                    est_k_local =
+                            est_k_local_d < est_k_global
+                                    ? static_cast<int>(std::ceil(est_k_local_d))
+                                    : est_k_local;
+                    utility::LogDebug(
+                            "Thread {:06d}: registration fitness={:.3f}, "
+                            "corres inlier ratio={:.3f}, "
+                            "Est. max k = {}",
+                            itr, result.fitness_, corres_inlier_ratio,
+                            est_k_local_d);
                 }
-            }  // if < exit_itr_local
+#pragma omp critical
+                {
+                    total_validation += 1;
+                    if (est_k_local < est_k_global) {
+                        est_k_global = est_k_local;
+                    }
+                }
+            }  // if
         }      // for loop
+
 #pragma omp critical(RegistrationRANSACBasedOnCorrespondence)
         {
             if (best_result_local.IsBetterRANSACThan(best_result)) {
                 best_result = best_result_local;
             }
-            if (exit_itr_local > exit_itr) {
-                exit_itr = exit_itr_local;
-            }
         }
     }
     utility::LogDebug(
-            "RANSAC exits at {:d}-th iteration: inlier ratio {:e}, "
+            "RANSAC exits after {:d} validations. Best inlier ratio {:e}, "
             "RMSE {:e}",
-            exit_itr, best_result.fitness_, best_result.inlier_rmse_);
+            total_validation, best_result.fitness_, best_result.inlier_rmse_);
     return best_result;
 }
 
 RegistrationResult RegistrationRANSACBasedOnFeatureMatching(
         const geometry::PointCloud &source,
         const geometry::PointCloud &target,
-        const Feature &source_feature,
-        const Feature &target_feature,
+        const Feature &source_features,
+        const Feature &target_features,
         bool mutual_filter,
         double max_correspondence_distance,
-        const TransformationEstimation &estimation
-        /* = TransformationEstimationPointToPoint(false)*/,
+        const TransformationEstimation
+                &estimation /* = TransformationEstimationPointToPoint(false)*/,
         int ransac_n /* = 3*/,
         const std::vector<std::reference_wrapper<const CorrespondenceChecker>>
                 &checkers /* = {}*/,
-        const RANSACConvergenceCriteria &criteria
-        /* = RANSACConvergenceCriteria()*/,
-        utility::optional<unsigned int> seed /* = utility::nullopt*/) {
+        const RANSACConvergenceCriteria
+                &criteria /* = RANSACConvergenceCriteria()*/) {
     if (ransac_n < 3 || max_correspondence_distance <= 0.0) {
         return RegistrationResult();
     }
 
-    int num_src_pts = int(source.points_.size());
-    int num_tgt_pts = int(target.points_.size());
-
-    geometry::KDTreeFlann kdtree_target(target_feature);
-    pipelines::registration::CorrespondenceSet corres_ij(num_src_pts);
-
-#pragma omp parallel for num_threads(utility::EstimateMaxThreads())
-    for (int i = 0; i < num_src_pts; i++) {
-        std::vector<int> corres_tmp(1);
-        std::vector<double> dist_tmp(1);
-
-        kdtree_target.SearchKNN(Eigen::VectorXd(source_feature.data_.col(i)), 1,
-                                corres_tmp, dist_tmp);
-        int j = corres_tmp[0];
-        corres_ij[i] = Eigen::Vector2i(i, j);
-    }
-
-    // Do reverse check if mutual_filter is enabled
-    if (mutual_filter) {
-        geometry::KDTreeFlann kdtree_source(source_feature);
-        pipelines::registration::CorrespondenceSet corres_ji(num_tgt_pts);
-
-#pragma omp parallel for num_threads(utility::EstimateMaxThreads())
-        for (int j = 0; j < num_tgt_pts; ++j) {
-            std::vector<int> corres_tmp(1);
-            std::vector<double> dist_tmp(1);
-            kdtree_source.SearchKNN(
-                    Eigen::VectorXd(target_feature.data_.col(j)), 1, corres_tmp,
-                    dist_tmp);
-            int i = corres_tmp[0];
-            corres_ji[j] = Eigen::Vector2i(i, j);
-        }
-
-        pipelines::registration::CorrespondenceSet corres_mutual;
-        for (int i = 0; i < num_src_pts; ++i) {
-            int j = corres_ij[i](1);
-            if (corres_ji[j](0) == i) {
-                corres_mutual.emplace_back(i, j);
-            }
-        }
-
-        // Empirically mutual correspondence set should not be too small
-        if (int(corres_mutual.size()) >= ransac_n * 3) {
-            utility::LogDebug("{:d} correspondences remain after mutual filter",
-                              corres_mutual.size());
-            return RegistrationRANSACBasedOnCorrespondence(
-                    source, target, corres_mutual, max_correspondence_distance,
-                    estimation, ransac_n, checkers, criteria, seed);
-        }
-        utility::LogDebug(
-                "Too few correspondences after mutual filter, fall back to "
-                "original correspondences.");
-    }
+    CorrespondenceSet corres = CorrespondencesFromFeatures(
+            source_features, target_features, mutual_filter);
 
     return RegistrationRANSACBasedOnCorrespondence(
-            source, target, corres_ij, max_correspondence_distance, estimation,
-            ransac_n, checkers, criteria, seed);
+            source, target, corres, max_correspondence_distance, estimation,
+            ransac_n, checkers, criteria);
 }
 
 Eigen::Matrix6d GetInformationMatrixFromPointClouds(

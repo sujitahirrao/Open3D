@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/core/hashmap/HashMap.h"
@@ -339,31 +320,30 @@ void HashMap::Init(int64_t init_capacity,
                    const HashBackendType& backend) {
     // Key check
     if (key_dtype_.GetDtypeCode() == Dtype::DtypeCode::Undefined) {
-        utility::LogError("[HashMap] Undefined key dtype is not allowed.");
+        utility::LogError("Undefined key dtype is not allowed.");
     }
     if (key_element_shape_.NumElements() == 0) {
         utility::LogError(
-                "[HashMap] Key element shape must contain at least 1 element, "
+                "Key element shape must contain at least 1 element, "
                 "but got 0.");
     }
 
     // Value check
     if (dtypes_value_.size() != element_shapes_value_.size()) {
         utility::LogError(
-                "[HashMap] Size of value_dtype ({}) mismatches with size of "
+                "Size of value_dtype ({}) mismatches with size of "
                 "element_shapes_value ({}).",
                 dtypes_value_.size(), element_shapes_value_.size());
     }
     for (const auto& value_dtype : dtypes_value_) {
         if (value_dtype.GetDtypeCode() == Dtype::DtypeCode::Undefined) {
-            utility::LogError(
-                    "[HashMap] Undefined value dtype is not allowed.");
+            utility::LogError("Undefined value dtype is not allowed.");
         }
     }
     for (const auto& value_element_shape : element_shapes_value_) {
         if (value_element_shape.NumElements() == 0) {
             utility::LogError(
-                    "[HashMap] Value element shape must contain at least 1 "
+                    "Value element shape must contain at least 1 "
                     "element, but got 0.");
         }
     }

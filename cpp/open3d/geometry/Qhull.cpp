@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/geometry/Qhull.h"
@@ -39,7 +20,8 @@ namespace open3d {
 namespace geometry {
 
 std::tuple<std::shared_ptr<TriangleMesh>, std::vector<size_t>>
-Qhull::ComputeConvexHull(const std::vector<Eigen::Vector3d>& points) {
+Qhull::ComputeConvexHull(const std::vector<Eigen::Vector3d>& points,
+                         bool joggle_inputs) {
     auto convex_hull = std::make_shared<TriangleMesh>();
     std::vector<size_t> pt_map;
 
@@ -55,8 +37,15 @@ Qhull::ComputeConvexHull(const std::vector<Eigen::Vector3d>& points) {
     qhull_points.append(qhull_points_data);
 
     orgQhull::Qhull qhull;
+    std::string options = "Qt";
+    if (joggle_inputs) {
+        // joggle ('QJ') produces simplicial output (i.e., triangles in 2-D).
+        // Unless merging is requested, option 'Qt' has no effect
+        options = "QJ";
+    }
     qhull.runQhull(qhull_points.comment().c_str(), qhull_points.dimension(),
-                   qhull_points.count(), qhull_points.coordinates(), "Qt");
+                   qhull_points.count(), qhull_points.coordinates(),
+                   options.c_str());
 
     orgQhull::QhullFacetList facets = qhull.facetList();
     convex_hull->triangles_.resize(facets.count());
@@ -92,10 +81,24 @@ Qhull::ComputeConvexHull(const std::vector<Eigen::Vector3d>& points) {
         tidx++;
     }
 
+    auto center = convex_hull->GetCenter();
     for (Eigen::Vector3i& triangle : convex_hull->triangles_) {
         triangle(0) = vert_map[triangle(0)];
         triangle(1) = vert_map[triangle(1)];
         triangle(2) = vert_map[triangle(2)];
+
+        Eigen::Vector3d e1 = convex_hull->vertices_[triangle(1)] -
+                             convex_hull->vertices_[triangle(0)];
+        Eigen::Vector3d e2 = convex_hull->vertices_[triangle(2)] -
+                             convex_hull->vertices_[triangle(0)];
+        auto normal = e1.cross(e2);
+
+        auto triangle_center = (1. / 3) * (convex_hull->vertices_[triangle(0)] +
+                                           convex_hull->vertices_[triangle(1)] +
+                                           convex_hull->vertices_[triangle(2)]);
+        if (normal.dot(triangle_center - center) < 0) {
+            std::swap(triangle(0), triangle(1));
+        }
     }
 
     return std::make_tuple(convex_hull, pt_map);
@@ -109,9 +112,7 @@ Qhull::ComputeDelaunayTetrahedralization(
     std::vector<size_t> pt_map;
 
     if (points.size() < 4) {
-        utility::LogError(
-                "[ComputeDelaunayTriangulation3D] not enough points to create "
-                "a tetrahedral mesh.");
+        utility::LogError("Not enough points to create a tetrahedral mesh.");
     }
 
     // qhull cannot deal with this case

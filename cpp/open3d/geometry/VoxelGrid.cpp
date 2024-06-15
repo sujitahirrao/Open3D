@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/geometry/VoxelGrid.h"
@@ -104,7 +85,12 @@ AxisAlignedBoundingBox VoxelGrid::GetAxisAlignedBoundingBox() const {
     return box;
 }
 
-OrientedBoundingBox VoxelGrid::GetOrientedBoundingBox() const {
+OrientedBoundingBox VoxelGrid::GetOrientedBoundingBox(bool) const {
+    return OrientedBoundingBox::CreateFromAxisAlignedBoundingBox(
+            GetAxisAlignedBoundingBox());
+}
+
+OrientedBoundingBox VoxelGrid::GetMinimalOrientedBoundingBox(bool) const {
     return OrientedBoundingBox::CreateFromAxisAlignedBoundingBox(
             GetAxisAlignedBoundingBox());
 }
@@ -134,20 +120,20 @@ VoxelGrid &VoxelGrid::Rotate(const Eigen::Matrix3d &R,
 VoxelGrid &VoxelGrid::operator+=(const VoxelGrid &voxelgrid) {
     if (voxel_size_ != voxelgrid.voxel_size_) {
         utility::LogError(
-                "[VoxelGrid] Could not combine VoxelGrid because voxel_size "
+                "Could not combine VoxelGrid because voxel_size "
                 "differs (this=%f, other=%f)",
                 voxel_size_, voxelgrid.voxel_size_);
     }
     if (origin_ != voxelgrid.origin_) {
         utility::LogError(
-                "[VoxelGrid] Could not combine VoxelGrid because origin "
+                "Could not combine VoxelGrid because origin "
                 "differs (this=%f,%f,%f, other=%f,%f,%f)",
                 origin_(0), origin_(1), origin_(2), voxelgrid.origin_(0),
                 voxelgrid.origin_(1), voxelgrid.origin_(2));
     }
     if (this->HasColors() != voxelgrid.HasColors()) {
         utility::LogError(
-                "[VoxelGrid] Could not combine VoxelGrid one has colors and "
+                "Could not combine VoxelGrid one has colors and "
                 "the other not.");
     }
     std::unordered_map<Eigen::Vector3i, AvgColorVoxel,
@@ -210,6 +196,8 @@ std::vector<Eigen::Vector3d> VoxelGrid::GetVoxelBoundingPoints(
 void VoxelGrid::AddVoxel(const Voxel &voxel) {
     voxels_[voxel.grid_index_] = voxel;
 }
+
+void VoxelGrid::RemoveVoxel(const Eigen::Vector3i &idx) { voxels_.erase(idx); }
 
 std::vector<bool> VoxelGrid::CheckIfIncluded(
         const std::vector<Eigen::Vector3d> &queries) {
@@ -277,7 +265,7 @@ VoxelGrid &VoxelGrid::CarveDepthMap(
     if (depth_map.height_ != camera_parameter.intrinsic_.height_ ||
         depth_map.width_ != camera_parameter.intrinsic_.width_) {
         utility::LogError(
-                "[VoxelGrid] provided depth_map dimensions are not compatible "
+                "provided depth_map dimensions are not compatible "
                 "with the provided camera_parameters");
     }
 
@@ -321,7 +309,7 @@ VoxelGrid &VoxelGrid::CarveSilhouette(
     if (silhouette_mask.height_ != camera_parameter.intrinsic_.height_ ||
         silhouette_mask.width_ != camera_parameter.intrinsic_.width_) {
         utility::LogError(
-                "[VoxelGrid] provided silhouette_mask dimensions are not "
+                "provided silhouette_mask dimensions are not "
                 "compatible with the provided camera_parameters");
     }
 

@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include <Eigen/Dense>
@@ -168,7 +149,7 @@ std::shared_ptr<LineSet> LineSet::CreateCameraVisualization(
     };
     double w = double(view_width_px);
     double h = double(view_height_px);
-    // Matrix m transforms from homogenous pixel coordinates to world
+    // Matrix m transforms from homogeneous pixel coordinates to world
     // coordinates so x and y need to be multiplied by z. In the case of the
     // first point, the eye point, z=0, so x and y will be zero, too regardless
     // of their initial values as the center.
@@ -188,6 +169,25 @@ std::shared_ptr<LineSet> LineSet::CreateCameraVisualization(
     lines->lines_.push_back({3, 4});
     lines->lines_.push_back({4, 1});
     lines->PaintUniformColor({0.0f, 0.0f, 1.0f});
+
+    // Add XYZ axes
+    lines->points_.push_back(
+            mult(m, Eigen::Vector3d{intrinsic(0, 0) * scale, 0.0, 0.0}));
+    lines->points_.push_back(
+            mult(m, Eigen::Vector3d{0.0, intrinsic(1, 1) * scale, 0.0}));
+    lines->points_.push_back(
+            mult(m, Eigen::Vector3d{intrinsic(0, 2) * scale,
+                                    intrinsic(1, 2) * scale, scale}));
+
+    // Add lines for the axes
+    lines->lines_.push_back({0, 5});  // X axis (red)
+    lines->lines_.push_back({0, 6});  // Y axis (green)
+    lines->lines_.push_back({0, 7});  // Z axis (blue)
+
+    // Set colors for the axes
+    lines->colors_.push_back({1.0f, 0.0f, 0.0f});  // Red
+    lines->colors_.push_back({0.0f, 1.0f, 0.0f});  // Green
+    lines->colors_.push_back({0.0f, 0.0f, 1.0f});  // Blue
 
     return lines;
 }

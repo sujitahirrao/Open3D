@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include <rply.h>
@@ -127,23 +108,15 @@ static core::Dtype GetDtype(e_ply_type type) {
     // Currently, we are not doing datatype conversions, so some of the ply
     // datatypes are not included.
 
-    if (type == PLY_UINT8) {
+    if (type == PLY_UINT8 || type == PLY_UCHAR) {
         return core::UInt8;
     } else if (type == PLY_UINT16) {
         return core::UInt16;
-    } else if (type == PLY_INT32) {
+    } else if (type == PLY_INT32 || type == PLY_INT) {
         return core::Int32;
-    } else if (type == PLY_FLOAT32) {
+    } else if (type == PLY_FLOAT32 || type == PLY_FLOAT) {
         return core::Float32;
-    } else if (type == PLY_FLOAT64) {
-        return core::Float64;
-    } else if (type == PLY_UCHAR) {
-        return core::UInt8;
-    } else if (type == PLY_INT) {
-        return core::Int32;
-    } else if (type == PLY_FLOAT) {
-        return core::Float32;
-    } else if (type == PLY_DOUBLE) {
+    } else if (type == PLY_FLOAT64 || type == PLY_DOUBLE) {
         return core::Float64;
     } else {
         return core::Undefined;
@@ -289,23 +262,21 @@ bool ReadPointCloudFromPLY(const std::string &filename,
 
 static e_ply_type GetPlyType(const core::Dtype &dtype) {
     if (dtype == core::UInt8) {
-        return PLY_UINT8;
+        return PLY_UCHAR;
     } else if (dtype == core::UInt16) {
         return PLY_UINT16;
     } else if (dtype == core::Int32) {
-        return PLY_INT32;
-    } else if (dtype == core::Float32) {
-        return PLY_FLOAT32;
-    } else if (dtype == core::Float64) {
-        return PLY_FLOAT64;
-    } else if (dtype == core::UInt8) {
-        return PLY_UCHAR;
-    } else if (dtype == core::Int32) {
-        return PLY_INT32;
+        return PLY_INT;
     } else if (dtype == core::Float32) {
         return PLY_FLOAT;
-    } else {
+    } else if (dtype == core::Float64) {
         return PLY_DOUBLE;
+    } else {
+        utility::LogError(
+                "Data-type {} is not supported in WritePointCloudToPLY. "
+                "Supported data-types include UInt8, UInt16, Int32, Float32 "
+                "and Float64.",
+                dtype.ToString());
     }
 }
 

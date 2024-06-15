@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/geometry/TriangleMesh.h"
@@ -33,14 +14,37 @@
 namespace open3d {
 namespace tests {
 
+/// Test if two meshes are equal.
+/// \param mesh0 First mesh.
+/// \param mesh1 Second mesh
+/// \param threshold absolute threshold for comparing attributes like positions,
+/// colors and normals.
+/// \param eq_triangle_vertex_order If true then triangles are only equal if the
+/// order of the vertices is the same. If false any permutation of the triangle
+/// indices is allowed.
 void ExpectMeshEQ(const open3d::geometry::TriangleMesh& mesh0,
                   const open3d::geometry::TriangleMesh& mesh1,
-                  double threshold = 1e-6) {
+                  double threshold = 1e-6,
+                  bool eq_triangle_vertex_order = true) {
     ExpectEQ(mesh0.vertices_, mesh1.vertices_, threshold);
     ExpectEQ(mesh0.vertex_normals_, mesh1.vertex_normals_, threshold);
     ExpectEQ(mesh0.vertex_colors_, mesh1.vertex_colors_, threshold);
-    ExpectEQ(mesh0.triangles_, mesh1.triangles_);
+    if (eq_triangle_vertex_order) {
+        ExpectEQ(mesh0.triangles_, mesh1.triangles_);
+    } else {
+        std::vector<Eigen::Vector3i> tris0 = mesh0.triangles_;
+        std::vector<Eigen::Vector3i> tris1 = mesh1.triangles_;
+        EXPECT_EQ(tris0.size(), tris1.size());
+        for (size_t i = 0; i < tris0.size(); ++i) {
+            tris0[i] = open3d::geometry::TriangleMesh::GetOrderedTriangle(
+                    tris0[i].x(), tris0[i].y(), tris0[i].z());
+            tris1[i] = open3d::geometry::TriangleMesh::GetOrderedTriangle(
+                    tris1[i].x(), tris1[i].y(), tris1[i].z());
+        }
+        ExpectEQ(tris0, tris1);
+    }
     ExpectEQ(mesh0.triangle_normals_, mesh1.triangle_normals_, threshold);
+    ExpectEQ(mesh0.triangle_uvs_, mesh1.triangle_uvs_);
 }
 
 TEST(TriangleMesh, Constructor) {
@@ -450,6 +454,10 @@ TEST(TriangleMesh, ComputeVertexNormals) {
     for (size_t i = 0; i < size; i++)
         tm.triangles_.push_back(
                 Eigen::Vector3i(i, (i + 1) % size, (i + 2) % size));
+
+    tm.ComputeVertexNormals();
+
+    ExpectEQ(ref, tm.vertex_normals_);
 
     tm.ComputeVertexNormals();
 
@@ -1191,6 +1199,16 @@ TEST(TriangleMesh, RemoveTrianglesByMask) {
             {0.000000, 0.000000, -1.000000}, {0.000000, 0.000000, -1.000000},
             {0.000000, 0.000000, 1.000000},  {0.000000, 0.000000, 1.000000},
             {0.000000, 0.000000, 1.000000}};
+    mesh_in.triangle_uvs_ = {
+            {0.0, 0.0}, {1.0, 0.0}, {0.0, 1.0}, {1.0, 0.0}, {1.0, 0.0},
+            {0.0, 1.0}, {0.0, 1.0}, {1.0, 0.0}, {0.0, 1.0}, {0.0, 0.0},
+            {0.0, 1.0}, {0.0, 1.0}, {1.0, 0.0}, {0.0, 1.0}, {0.0, 1.0},
+            {0.0, 1.0}, {0.0, 1.0}, {0.0, 1.0}, {0.0, 0.0}, {1.0, 0.0},
+            {1.0, 1.0}, {1.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0},
+            {1.0, 0.0}, {1.0, 1.0}, {0.0, 0.0}, {1.0, 1.0}, {0.0, 1.0},
+            {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}, {0.0, 1.0}, {1.0, 1.0},
+            {0.0, 1.0}, {0.0, 0.0}, {1.0, 1.0}, {0.5, 1.0}, {1.0, 0.0},
+            {1.0, 1.0}, {0.5, 1.0}, {0.0, 1.0}, {1.0, 1.0}, {0.5, 1.0}};
     mesh_gt.vertices_ = {
             {0.000000, 0.000000, 0.000000}, {1.000000, 0.000000, 0.000000},
             {0.000000, 0.000000, 1.000000}, {1.000000, 0.000000, 1.000000},
@@ -1221,6 +1239,15 @@ TEST(TriangleMesh, RemoveTrianglesByMask) {
             {1.000000, 0.000000, 0.000000},  {1.000000, 0.000000, 0.000000},
             {0.000000, 0.000000, 1.000000},  {0.000000, 0.000000, 1.000000},
             {0.000000, 0.000000, -1.000000}, {0.000000, 0.000000, -1.000000}};
+    mesh_gt.triangle_uvs_ = {{0.0, 0.0}, {1.0, 0.0}, {0.0, 1.0}, {1.0, 0.0},
+                             {1.0, 0.0}, {0.0, 1.0}, {0.0, 1.0}, {1.0, 0.0},
+                             {0.0, 1.0}, {0.0, 0.0}, {0.0, 1.0}, {0.0, 1.0},
+                             {1.0, 0.0}, {0.0, 1.0}, {0.0, 1.0}, {0.0, 1.0},
+                             {0.0, 1.0}, {0.0, 1.0}, {0.0, 0.0}, {1.0, 0.0},
+                             {1.0, 1.0}, {1.0, 0.0}, {1.0, 0.0}, {1.0, 1.0},
+                             {0.0, 1.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 0.0},
+                             {1.0, 1.0}, {0.0, 1.0}, {1.0, 0.0}, {1.0, 1.0},
+                             {0.0, 1.0}, {0.0, 1.0}, {1.0, 1.0}, {0.0, 1.0}};
     std::vector<bool> triangles_to_remove = {false, false, false, false, false,
                                              false, false, false, false, false,
                                              false, false, true,  true,  true};
@@ -1816,33 +1843,121 @@ TEST(TriangleMesh, CreateFromPointCloudPoisson) {
             {0.742035, 0.885688, 0.458892}, {0.742035, 0.885688, 0.458892},
             {0.383097, 0.761093, 0.173810}, {0.284898, 0.359292, 0.669062}};
     mesh_gt.triangles_ = {
-            {1, 13, 0},   {0, 14, 2},   {13, 14, 0},  {1, 15, 13},
-            {15, 16, 13}, {1, 3, 15},   {14, 13, 16}, {16, 17, 14},
-            {2, 18, 4},   {14, 18, 2},  {4, 18, 5},   {18, 14, 17},
-            {17, 19, 18}, {18, 19, 6},  {6, 5, 18},   {7, 16, 15},
-            {7, 8, 16},   {8, 20, 16},  {21, 16, 20}, {17, 16, 21},
-            {9, 20, 8},   {10, 20, 9},  {21, 20, 10}, {22, 17, 21},
-            {19, 17, 22}, {19, 22, 11}, {11, 6, 19},  {22, 21, 10},
-            {10, 12, 22}, {11, 22, 12}, {24, 0, 23},  {1, 0, 24},
-            {0, 2, 25},   {25, 23, 0},  {3, 1, 24},   {24, 26, 3},
-            {2, 4, 27},   {27, 25, 2},  {27, 5, 28},  {4, 5, 27},
-            {28, 6, 29},  {5, 6, 28},   {8, 7, 30},   {30, 31, 8},
-            {32, 8, 31},  {9, 8, 32},   {33, 9, 32},  {10, 9, 33},
-            {6, 11, 34},  {34, 29, 6},  {12, 10, 33}, {33, 35, 12},
-            {34, 12, 35}, {11, 12, 34}, {24, 23, 48}, {36, 23, 25},
-            {36, 37, 23}, {37, 48, 23}, {38, 24, 48}, {38, 39, 24},
-            {39, 26, 24}, {39, 49, 26}, {38, 48, 37}, {25, 27, 40},
-            {40, 36, 25}, {27, 28, 41}, {41, 40, 27}, {28, 29, 42},
-            {42, 41, 28}, {39, 30, 49}, {39, 31, 30}, {39, 50, 31},
-            {39, 43, 50}, {44, 50, 43}, {32, 31, 50}, {44, 32, 50},
-            {44, 45, 32}, {45, 33, 32}, {42, 34, 46}, {29, 34, 42},
-            {47, 33, 45}, {35, 33, 47}, {34, 35, 47}, {47, 46, 34},
-            {37, 36, 51}, {39, 38, 52}, {53, 52, 51}, {52, 37, 51},
-            {52, 38, 37}, {36, 40, 54}, {54, 51, 36}, {54, 40, 41},
-            {51, 54, 55}, {55, 53, 51}, {55, 41, 42}, {54, 41, 55},
-            {43, 39, 52}, {56, 52, 53}, {56, 44, 52}, {44, 43, 52},
-            {45, 44, 56}, {56, 55, 57}, {53, 55, 56}, {55, 42, 46},
-            {46, 57, 55}, {45, 56, 57}, {57, 47, 45}, {57, 46, 47}};
+        {1, 13, 0},
+        {0, 14, 2},
+        {13, 14, 0},
+        {1, 15, 13},
+        {15, 16, 13},
+        {1, 3, 15},
+        {14, 13, 16},
+        {16, 17, 14},
+        {2, 18, 4},
+        {14, 18, 2},
+        {4, 18, 5},
+        {18, 14, 17},
+        {17, 19, 18},
+        {18, 19, 6},
+        {6, 5, 18},
+        {7, 16, 15},
+        {7, 8, 16},
+        {8, 20, 16},
+        {21, 16, 20},
+        {17, 16, 21},
+        {9, 20, 8},
+        {10, 20, 9},
+        {21, 20, 10},
+        {22, 17, 21},
+        {19, 17, 22},
+        {19, 22, 11},
+        {11, 6, 19},
+        {22, 21, 10},
+        {10, 12, 22},
+        {11, 22, 12},
+        {24, 0, 23},
+        {1, 0, 24},
+        {0, 2, 25},
+        {25, 23, 0},
+        {3, 1, 24},
+        {24, 26, 3},
+        {2, 4, 27},
+        {27, 25, 2},
+        {27, 5, 28},
+        {4, 5, 27},
+        {28, 6, 29},
+        {5, 6, 28},
+        {8, 7, 30},
+        {30, 31, 8},
+        {32, 8, 31},
+        {9, 8, 32},
+        {33, 9, 32},
+        {10, 9, 33},
+        {6, 11, 34},
+        {34, 29, 6},
+        {12, 10, 33},
+        {33, 35, 12},
+        {34, 12, 35},
+        {11, 12, 34},
+        {24, 23, 48},
+        {36, 23, 25},
+        {36, 37, 23},
+        {37, 48, 23},
+        {38, 24, 48},
+        {38, 39, 24},
+        {39, 26, 24},
+        {39, 49, 26},
+        {38, 48, 37},
+        {25, 27, 40},
+        {40, 36, 25},
+        {27, 28, 41},
+        {41, 40, 27},
+        {28, 29, 42},
+        {42, 41, 28},
+        {39, 30, 49},
+        {39, 31, 30},
+        {39, 50, 31},
+        {39, 43, 50},
+        {44, 50, 43},
+        {32, 31, 50},
+#if defined(__APPLE__) && defined(__arm64__)
+        // Apple Silicon consistently triangulates the vertices differently
+        {44, 45, 50},
+        {45, 32, 50},
+#else
+        {44, 32, 50},
+        {44, 45, 32},
+#endif
+        {45, 33, 32},
+        {42, 34, 46},
+        {29, 34, 42},
+        {47, 33, 45},
+        {35, 33, 47},
+        {34, 35, 47},
+        {47, 46, 34},
+        {37, 36, 51},
+        {39, 38, 52},
+        {53, 52, 51},
+        {52, 37, 51},
+        {52, 38, 37},
+        {36, 40, 54},
+        {54, 51, 36},
+        {54, 40, 41},
+        {51, 54, 55},
+        {55, 53, 51},
+        {55, 41, 42},
+        {54, 41, 55},
+        {43, 39, 52},
+        {56, 52, 53},
+        {56, 44, 52},
+        {44, 43, 52},
+        {45, 44, 56},
+        {56, 55, 57},
+        {53, 55, 56},
+        {55, 42, 46},
+        {46, 57, 55},
+        {45, 56, 57},
+        {57, 47, 45},
+        {57, 46, 47}
+    };
     std::vector<double> densities_gt = {
             0.39865168929100037, 0.32580316066741943, 0.39778709411621094,
             0.2200755625963211,  0.428702175617218,   0.4288075268268585,
@@ -1912,7 +2027,7 @@ TEST(TriangleMesh, CreateFromPointCloudAlphaShape) {
 
     auto mesh_es =
             geometry::TriangleMesh::CreateFromPointCloudAlphaShape(pcd, 1);
-    ExpectMeshEQ(*mesh_es, mesh_gt);
+    ExpectMeshEQ(*mesh_es, mesh_gt, 1e-6, false);
 }
 
 TEST(TriangleMesh, CreateMeshSphere) {
@@ -2181,7 +2296,8 @@ TEST(TriangleMesh, CreateMeshCoordinateFrame) {
         indices.push_back(output_tm->triangles_[i](1, 0));
         indices.push_back(output_tm->triangles_[i](2, 0));
     }
-    unique(indices.begin(), indices.end());
+    auto last = unique(indices.begin(), indices.end());
+    indices.erase(last, indices.end());
     sort(indices.begin(), indices.end());
     auto output = output_tm->SelectByIndex(indices);
 

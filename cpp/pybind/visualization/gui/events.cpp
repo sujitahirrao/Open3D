@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/visualization/gui/Events.h"
@@ -265,11 +246,23 @@ void pybind_gui_events(py::module& m) {
             .value("END", KeyName::KEY_END)
             .value("PAGE_UP", KeyName::KEY_PAGEUP)
             .value("PAGE_DOWN", KeyName::KEY_PAGEDOWN)
+            .value("F1", KeyName::KEY_F1)
+            .value("F2", KeyName::KEY_F2)
+            .value("F3", KeyName::KEY_F3)
+            .value("F4", KeyName::KEY_F4)
+            .value("F5", KeyName::KEY_F5)
+            .value("F6", KeyName::KEY_F6)
+            .value("F7", KeyName::KEY_F7)
+            .value("F8", KeyName::KEY_F8)
+            .value("F9", KeyName::KEY_F9)
+            .value("F10", KeyName::KEY_F10)
+            .value("F11", KeyName::KEY_F11)
+            .value("F12", KeyName::KEY_F12)
             .value("UNKNOWN", KeyName::KEY_UNKNOWN)
             .export_values();
 
     py::class_<KeyEvent> key_event(m, "KeyEvent",
-                                   "Object that stores mouse events");
+                                   "Object that stores key events");
     py::enum_<KeyEvent::Type> key_event_type(key_event, "Type",
                                              py::arithmetic());
     key_event_type.value("DOWN", KeyEvent::Type::DOWN)

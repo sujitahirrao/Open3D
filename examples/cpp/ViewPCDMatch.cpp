@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include <Eigen/Dense>
@@ -97,8 +78,6 @@ void PrintHelp() {
     utility::LogInfo("");
     utility::LogInfo("Basic options:");
     utility::LogInfo("    --help, -h                : Print help information.");
-    utility::LogInfo("    --log file                : A log file of the pairwise matching results. Must have.");
-    utility::LogInfo("    --dir directory           : The directory storing all pcd files. By default it is the parent directory of the log file + pcd/.");
     utility::LogInfo("    --verbose n               : Set verbose level (0-4). Default: 2.");
     // clang-format on
     utility::LogInfo("");
@@ -109,7 +88,7 @@ int main(int argc, char *argv[]) {
 
     utility::SetVerbosityLevel(utility::VerbosityLevel::Debug);
 
-    if (argc <= 1 ||
+    if (argc < 1 ||
         utility::ProgramOptionExistsAny(argc, argv, {"-h", "--help"})) {
         PrintHelp();
         return 1;
@@ -126,30 +105,24 @@ int main(int argc, char *argv[]) {
 
     int verbose = utility::GetProgramOptionAsInt(argc, argv, "--verbose", 5);
     utility::SetVerbosityLevel((utility::VerbosityLevel)verbose);
-    std::string log_filename =
-            utility::GetProgramOptionAsString(argc, argv, "--log");
-    std::string pcd_dirname =
-            utility::GetProgramOptionAsString(argc, argv, "--dir");
-    if (pcd_dirname.empty()) {
-        pcd_dirname =
-                utility::filesystem::GetFileParentDirectory(log_filename) +
-                "pcds/";
-    }
+
+    data::DemoICPPointClouds sample_data;
 
     std::vector<std::tuple<int, int, int>> metadata;
     std::vector<Eigen::Matrix4d> transformations;
-    ReadLogFile(log_filename, metadata, transformations);
+    ReadLogFile(sample_data.GetTransformationLogPath(), metadata,
+                transformations);
 
     for (size_t k = 0; k < metadata.size(); k++) {
         auto i = std::get<0>(metadata[k]), j = std::get<1>(metadata[k]);
         utility::LogInfo("Showing matched point cloud #{:d} and #{:d}.", i, j);
-        auto pcd_target = io::CreatePointCloudFromFile(
-                pcd_dirname + "cloud_bin_" + std::to_string(i) + ".pcd");
+        auto pcd_target =
+                io::CreatePointCloudFromFile(sample_data.GetPaths()[i]);
         pcd_target->colors_.clear();
         pcd_target->colors_.resize(pcd_target->points_.size(),
                                    color_palette[0]);
-        auto pcd_source = io::CreatePointCloudFromFile(
-                pcd_dirname + "cloud_bin_" + std::to_string(j) + ".pcd");
+        auto pcd_source =
+                io::CreatePointCloudFromFile(sample_data.GetPaths()[j]);
         pcd_source->colors_.clear();
         pcd_source->colors_.resize(pcd_source->points_.size(),
                                    color_palette[1]);

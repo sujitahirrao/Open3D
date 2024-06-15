@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/pipelines/registration/FastGlobalRegistration.h"
@@ -32,8 +13,8 @@
 #include "open3d/geometry/PointCloud.h"
 #include "open3d/pipelines/registration/Feature.h"
 #include "open3d/pipelines/registration/Registration.h"
-#include "open3d/utility/Helper.h"
 #include "open3d/utility/Logging.h"
+#include "open3d/utility/Random.h"
 
 namespace open3d {
 namespace pipelines {
@@ -46,7 +27,7 @@ static std::vector<std::pair<int, int>> InitialMatching(
     std::map<int, int> corres_ij;
     std::vector<int> corres_ji(dst_features.data_.cols(), -1);
 
-#pragma omp parallel for
+#pragma omp for nowait
     for (int j = 0; j < dst_features.data_.cols(); j++) {
         std::vector<int> corres_tmp(1);
         std::vector<double> dist_tmp(1);
@@ -88,9 +69,7 @@ static std::vector<std::pair<int, int>> AdvancedMatching(
     int ncorr = static_cast<int>(corres_cross.size());
     int number_of_trial = ncorr * 100;
 
-    unsigned int seed_val = option.seed_.has_value() ? option.seed_.value()
-                                                     : std::random_device{}();
-    utility::UniformRandIntGenerator rand_generator(0, ncorr - 1, seed_val);
+    utility::random::UniformIntGenerator<int> rand_generator(0, ncorr - 1);
     std::vector<std::pair<int, int>> corres_tuple;
     for (i = 0; i < number_of_trial; i++) {
         rand0 = rand_generator();
@@ -217,6 +196,7 @@ static Eigen::Matrix4d OptimizePairwiseRegistration(
         JTJ.setZero();
         JTr.setZero();
         double r = 0.0, r2 = 0.0;
+        (void)r2;  // r2 is not used for now. Suppress clang warning.
 
         for (size_t c = 0; c < corres.size(); c++) {
             int ii = corres[c].first;
@@ -258,6 +238,7 @@ static Eigen::Matrix4d OptimizePairwiseRegistration(
             r2 += r * r * s[c2];
             r2 += (par * (1.0 - sqrt(s[c2])) * (1.0 - sqrt(s[c2])));
         }
+        (void)r2;  // Fix warning in Clang.
         bool success;
         Eigen::VectorXd result;
         std::tie(success, result) = utility::SolveLinearSystemPSD(-JTJ, JTr);
@@ -291,7 +272,48 @@ static Eigen::Matrix4d GetTransformationOriginalScale(
     return transtemp;
 }
 
-RegistrationResult FastGlobalRegistration(
+RegistrationResult FastGlobalRegistrationBasedOnCorrespondence(
+        const geometry::PointCloud &source,
+        const geometry::PointCloud &target,
+        const CorrespondenceSet &corres,
+        const FastGlobalRegistrationOption &option /* =
+                FastGlobalRegistrationOption()*/) {
+    geometry::PointCloud source_orig = source;
+    geometry::PointCloud target_orig = target;
+
+    std::vector<geometry::PointCloud> point_cloud_vec;
+    point_cloud_vec.push_back(source);
+    point_cloud_vec.push_back(target);
+
+    double scale_global, scale_start;
+    std::vector<Eigen::Vector3d> pcd_mean_vec;
+    std::tie(pcd_mean_vec, scale_global, scale_start) =
+            NormalizePointCloud(point_cloud_vec, option);
+
+    std::vector<std::pair<int, int>> corresvec;
+    corresvec.reserve(corres.size());
+    for (size_t i = 0; i < corres.size(); ++i) {
+        corresvec.push_back({corres[i](0), corres[i](1)});
+    }
+
+    if (option.tuple_test_) {
+        corresvec = AdvancedMatching(source, target, corresvec, option);
+    }
+
+    Eigen::Matrix4d transformation;
+    transformation = OptimizePairwiseRegistration(point_cloud_vec, corresvec,
+                                                  scale_global, option);
+
+    // as the original code T * point_cloud_vec[1] is aligned with
+    // point_cloud_vec[0] matrix inverse is applied here.
+    return EvaluateRegistration(
+            source_orig, target_orig, option.maximum_correspondence_distance_,
+            GetTransformationOriginalScale(transformation, pcd_mean_vec,
+                                           scale_global)
+                    .inverse());
+}
+
+RegistrationResult FastGlobalRegistrationBasedOnFeatureMatching(
         const geometry::PointCloud& source,
         const geometry::PointCloud& target,
         const Feature& source_feature,
@@ -310,17 +332,21 @@ RegistrationResult FastGlobalRegistration(
     std::tie(pcd_mean_vec, scale_global, scale_start) =
             NormalizePointCloud(point_cloud_vec, option);
 
-    // for AdvancedMatching ensure the first point cloud is the larger one
     std::vector<std::pair<int, int>> corres;
-    if (source.points_.size() > target.points_.size()) {
-        corres = AdvancedMatching(
-                source, target, InitialMatching(source_feature, target_feature),
-                option);
+    if (option.tuple_test_) {
+        // use the smaller point cloud as the query during knn search
+        if (source.points_.size() >= target.points_.size()) {
+            corres = AdvancedMatching(
+                    source, target,
+                    InitialMatching(source_feature, target_feature), option);
+        } else {
+            corres = AdvancedMatching(
+                    target, source,
+                    InitialMatching(target_feature, source_feature), option);
+            for (auto& p : corres) std::swap(p.first, p.second);
+        }
     } else {
-        corres = AdvancedMatching(
-                target, source, InitialMatching(target_feature, source_feature),
-                option);
-        for (auto& p : corres) std::swap(p.first, p.second);
+        corres = InitialMatching(source_feature, target_feature);
     }
 
     Eigen::Matrix4d transformation;

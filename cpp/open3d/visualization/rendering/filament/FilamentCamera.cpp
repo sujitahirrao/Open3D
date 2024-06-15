@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/visualization/rendering/filament/FilamentCamera.h"
@@ -89,6 +70,8 @@ FilamentCamera::FilamentCamera(filament::Engine& engine) : engine_(engine) {
 
 FilamentCamera::~FilamentCamera() {
     engine_.destroyCameraComponent(camera_entity_);
+    engine_.destroy(camera_entity_);
+    camera_entity_.clear();
 }
 
 void FilamentCamera::CopyFrom(const Camera* camera) {
@@ -168,6 +151,7 @@ void FilamentCamera::SetProjection(const Eigen::Matrix3d& intrinsics,
                                    double width,
                                    double height) {
     filament::math::mat4 custom_proj;
+    filament::math::mat4 culling_proj;
     custom_proj[0][0] = 2.0 * intrinsics(0, 0) / width;
     custom_proj[0][1] = 0.0;
     custom_proj[0][2] = 0.0;
@@ -180,15 +164,23 @@ void FilamentCamera::SetProjection(const Eigen::Matrix3d& intrinsics,
 
     custom_proj[2][0] = 1.0 - 2.0 * intrinsics(0, 2) / width;
     custom_proj[2][1] = -1.0 + 2.0 * intrinsics(1, 2) / height;
-    custom_proj[2][2] = (-far - near) / (far - near);
+    custom_proj[2][2] = -1.0;
     custom_proj[2][3] = -1.0;
 
     custom_proj[3][0] = 0.0;
     custom_proj[3][1] = 0.0;
-    custom_proj[3][2] = -2.0 * far * near / (far - near);
+    custom_proj[3][2] = -2.0 * near;
     custom_proj[3][3] = 0.0;
 
+    culling_proj = custom_proj;
+    culling_proj[2][2] = (-far - near) / (far - near);
+    culling_proj[3][2] = -2.0 * far * near / (far - near);
+
+#ifdef WIN32
     camera_->setCustomProjection(custom_proj, near, far);
+#else
+    camera_->setCustomProjection(custom_proj, culling_proj, near, far);
+#endif
 
     projection_.is_intrinsic = true;
     projection_.is_ortho = false;
@@ -304,6 +296,15 @@ Eigen::Vector2f FilamentCamera::GetNDC(const Eigen::Vector3f& pt) const {
     return {ndc_space_p.x, ndc_space_p.y};
 }
 
+double FilamentCamera::GetViewZ(float z_buffer) const {
+    double z_near = GetNear();
+    if (z_buffer >= 1.0f) {
+        return std::numeric_limits<double>::infinity();
+    } else {
+        return -z_near / (1.0 - z_buffer);
+    }
+}
+
 const Camera::ProjectionInfo& FilamentCamera::GetProjection() const {
     return projection_;
 }
@@ -329,7 +330,8 @@ void FilamentCamera::SetModelMatrix(const Transform& view) {
 Eigen::Vector3f FilamentCamera::Unproject(
         float x, float y, float z, float view_width, float view_height) const {
     Eigen::Vector4f gl_pt(2.0f * x / view_width - 1.0f,
-                          2.0f * y / view_height - 1.0f, 2.0f * z - 1.0f, 1.0f);
+                          2.0f * (view_height - y) / view_height - 1.0f,
+                          2.0f * z - 1.0f, 1.0f);
 
     auto proj = GetProjectionMatrix();
     Eigen::Vector4f obj_pt = (proj * GetViewMatrix()).inverse() * gl_pt;

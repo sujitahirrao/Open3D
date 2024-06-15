@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include <Eigen/Dense>
@@ -416,7 +397,7 @@ void Execute(const open3d::geometry::PointCloud& pcd,
              std::shared_ptr<open3d::geometry::TriangleMesh>& out_mesh,
              std::vector<double>& out_densities,
              int depth,
-             size_t width,
+             float width,
              float scale,
              bool linear_fit,
              UIntPack<FEMSigs...>) {
@@ -467,7 +448,7 @@ void Execute(const open3d::geometry::PointCloud& pcd,
     {
         Open3DPointStream<Real> pointStream(&pcd);
 
-        if (width > 0) {
+        if (width > 0.0f) {
             xForm = GetPointXForm<Real, Dim>(pointStream, (Real)width,
                                              (Real)(scale > 0 ? scale : 1.),
                                              depth) *
@@ -516,9 +497,7 @@ void Execute(const open3d::geometry::PointCloud& pcd,
 
     int kernelDepth = depth - 2;
     if (kernelDepth < 0) {
-        utility::LogError(
-                "[CreateFromPointCloudPoisson] depth (={}) has to be >= 2",
-                depth);
+        utility::LogError("depth (={}) has to be >= 2", depth);
     }
 
     DenseNodeData<Real, Sigs> solution;
@@ -739,7 +718,7 @@ void Execute(const open3d::geometry::PointCloud& pcd,
 std::tuple<std::shared_ptr<TriangleMesh>, std::vector<double>>
 TriangleMesh::CreateFromPointCloudPoisson(const PointCloud& pcd,
                                           size_t depth,
-                                          size_t width,
+                                          float width,
                                           float scale,
                                           bool linear_fit,
                                           int n_threads) {
@@ -750,7 +729,7 @@ TriangleMesh::CreateFromPointCloudPoisson(const PointCloud& pcd,
             FEMSigs;
 
     if (!pcd.HasNormals()) {
-        utility::LogError("[CreateFromPointCloudPoisson] pcd has no normals");
+        utility::LogError("Point cloud has no normals");
     }
 
     if (n_threads <= 0) {

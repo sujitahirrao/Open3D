@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include <string>
@@ -34,7 +15,7 @@
 #include "open3d/io/PinholeCameraTrajectoryIO.h"
 #include "open3d/io/PoseGraphIO.h"
 #include "open3d/pipelines/registration/PoseGraph.h"
-#include "open3d/t/geometry/TSDFVoxelGrid.h"
+#include "open3d/t/geometry/VoxelBlockGrid.h"
 #include "open3d/t/io/ImageIO.h"
 #include "open3d/t/io/PointCloudIO.h"
 #include "open3d/t/pipelines/registration/Registration.h"
@@ -71,8 +52,8 @@ static bool IsPointCloudSimilar(t::geometry::PointCloud source,
 TEST_P(SLACPermuteDevices, DISABLED_RunSLACOptimizerForFragments) {
     core::Device device = GetParam();
 
-    std::string dataset_folder = utility::GetDataPathCommon(
-            "reconstruction_system/livingroom1_clean_micro");
+    std::string dataset_folder =
+            "/reconstruction_system/livingroom1_clean_micro";
     std::string fragment_folder = dataset_folder + "/test_fragments";
     std::string scene_folder = dataset_folder + "/test_scene";
     std::string slac_folder = dataset_folder + "/output_slac";
@@ -84,8 +65,7 @@ TEST_P(SLACPermuteDevices, DISABLED_RunSLACOptimizerForFragments) {
     if (fragment_fnames.size() == 0) {
         utility::LogError(
                 "No fragment found in {}, please make sure the test dataset "
-                "has been downloaded in "
-                "GetDataPathDownload(\"tests/reconstruction_system/\").",
+                "has been downloaded.",
                 fragment_folder);
     }
     std::sort(fragment_fnames.begin(), fragment_fnames.end());
@@ -179,8 +159,8 @@ TEST_P(SLACPermuteDevices, DISABLED_RunSLACOptimizerForFragments) {
 TEST_P(SLACPermuteDevices, DISABLED_SLACIntegrate) {
     core::Device device = GetParam();
 
-    std::string dataset_folder = utility::GetDataPathCommon(
-            "reconstruction_system/livingroom1_clean_micro");
+    std::string dataset_folder =
+            "/reconstruction_system/livingroom1_clean_micro";
     std::string fragment_folder = dataset_folder + "/test_fragments";
     std::string color_folder = dataset_folder + "/image";
     std::string depth_folder = dataset_folder + "/depth";
@@ -214,19 +194,19 @@ TEST_P(SLACPermuteDevices, DISABLED_SLACIntegrate) {
     int block_count = 40000;
     float voxel_size = 0.05;
     float depth_scale = 1000.f;
-    float max_depth = 3.f;
-    float sdf_trunc = 0.04f;
-    t::geometry::TSDFVoxelGrid voxel_grid({{"tsdf", core::Float32},
-                                           {"weight", core::UInt16},
-                                           {"color", core::UInt16}},
-                                          voxel_size, sdf_trunc, 16,
-                                          block_count, device);
+    float depth_max = 3.f;
+    t::geometry::VoxelBlockGrid voxel_grid(
+            {"tsdf", "weight", "color"},
+            {core::Dtype::Float32, core::Dtype::Float32, core::Dtype::Float32},
+            {{1}, {1}, {3}}, voxel_size, 16, block_count, device);
 
     // Load control grid
-    core::Tensor ctr_grid_keys =
-            core::Tensor::Load(test_slac_subfolder + "/ctr_grid_keys.npy");
-    core::Tensor ctr_grid_values =
-            core::Tensor::Load(test_slac_subfolder + "/ctr_grid_values.npy");
+    core::Tensor ctr_grid_keys = core::Tensor::Load(test_slac_subfolder +
+                                                    "/ctr_grid_keys."
+                                                    "npy");
+    core::Tensor ctr_grid_values = core::Tensor::Load(test_slac_subfolder +
+                                                      "/ctr_grid_values."
+                                                      "npy");
     t::pipelines::slac::ControlGrid ctr_grid(3.0 / 8, ctr_grid_keys.To(device),
                                              ctr_grid_values.To(device),
                                              device);
@@ -266,19 +246,23 @@ TEST_P(SLACPermuteDevices, DISABLED_SLACIntegrate) {
 
             t::geometry::RGBDImage rgbd_projected =
                     ctr_grid.Deform(rgbd, intrinsic_t, extrinsic_local_t,
-                                    depth_scale, max_depth);
-            voxel_grid.Integrate(rgbd_projected.depth_, rgbd_projected.color_,
-                                 intrinsic_t, extrinsic_t, depth_scale,
-                                 max_depth);
+                                    depth_scale, depth_max);
+            core::Tensor frustum_block_coords =
+                    voxel_grid.GetUniqueBlockCoordinates(
+                            rgbd.depth_, intrinsic_t, extrinsic_t, depth_scale,
+                            depth_max);
+            voxel_grid.Integrate(frustum_block_coords, rgbd_projected.depth_,
+                                 rgbd_projected.color_, intrinsic_t,
+                                 extrinsic_t, depth_scale, depth_max);
             timer.Stop();
 
             ++k;
             utility::LogDebug("{}: Deformation + Integration takes {}", k,
-                              timer.GetDuration());
+                              timer.GetDurationInMillisecond());
         }
     }
 
-    auto pcd = voxel_grid.ExtractSurfacePoints();
+    auto pcd = voxel_grid.ExtractPointCloud();
 
     t::geometry::PointCloud test_pointcloud(device);
     t::io::ReadPointCloud(test_pointcloud_filename, test_pointcloud,

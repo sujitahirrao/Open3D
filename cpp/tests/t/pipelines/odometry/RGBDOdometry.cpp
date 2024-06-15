@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/t/pipelines/odometry/RGBDOdometry.h"
@@ -29,6 +10,7 @@
 #include "core/CoreTest.h"
 #include "open3d/camera/PinholeCameraIntrinsic.h"
 #include "open3d/core/Tensor.h"
+#include "open3d/data/Dataset.h"
 #include "open3d/t/geometry/Image.h"
 #include "open3d/t/geometry/PointCloud.h"
 #include "open3d/t/io/ImageIO.h"
@@ -57,18 +39,18 @@ core::Tensor CreateIntrisicTensor() {
 
 TEST_P(OdometryPermuteDevices, ComputeOdometryResultPointToPlane) {
     core::Device device = GetParam();
-    if (!t::geometry::Image::HAVE_IPPICV &&
-        device.GetType() == core::Device::DeviceType::CPU) {
+    if (!t::geometry::Image::HAVE_IPPICV && device.IsCPU()) {
         return;
     }
 
     const float depth_scale = 1000.0;
     const float depth_diff = 0.07;
 
-    t::geometry::Image src_depth = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("RGBD/depth/00000.png"));
-    t::geometry::Image dst_depth = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("RGBD/depth/00002.png"));
+    data::SampleRedwoodRGBDImages redwood_data;
+    t::geometry::Image src_depth =
+            *t::io::CreateImageFromFile(redwood_data.GetDepthPaths()[0]);
+    t::geometry::Image dst_depth =
+            *t::io::CreateImageFromFile(redwood_data.GetDepthPaths()[2]);
 
     src_depth = src_depth.To(device);
     dst_depth = dst_depth.To(device);
@@ -124,8 +106,7 @@ TEST_P(OdometryPermuteDevices, ComputeOdometryResultPointToPlane) {
 
 TEST_P(OdometryPermuteDevices, RGBDOdometryMultiScalePointToPlane) {
     core::Device device = GetParam();
-    if (!t::geometry::Image::HAVE_IPPICV &&
-        device.GetType() == core::Device::DeviceType::CPU) {
+    if (!t::geometry::Image::HAVE_IPPICV && device.IsCPU()) {
         return;
     }
 
@@ -133,14 +114,15 @@ TEST_P(OdometryPermuteDevices, RGBDOdometryMultiScalePointToPlane) {
     const float depth_max = 3.0;
     const float depth_diff = 0.07;
 
-    t::geometry::Image src_depth = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("RGBD/depth/00000.png"));
-    t::geometry::Image dst_depth = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("RGBD/depth/00002.png"));
-    t::geometry::Image src_color = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("RGBD/color/00000.jpg"));
-    t::geometry::Image dst_color = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("RGBD/color/00002.jpg"));
+    data::SampleRedwoodRGBDImages redwood_data;
+    t::geometry::Image src_depth =
+            *t::io::CreateImageFromFile(redwood_data.GetDepthPaths()[0]);
+    t::geometry::Image dst_depth =
+            *t::io::CreateImageFromFile(redwood_data.GetDepthPaths()[2]);
+    t::geometry::Image src_color =
+            *t::io::CreateImageFromFile(redwood_data.GetColorPaths()[0]);
+    t::geometry::Image dst_color =
+            *t::io::CreateImageFromFile(redwood_data.GetColorPaths()[2]);
 
     t::geometry::RGBDImage src, dst;
     src.color_ = src_color.To(device);
@@ -191,8 +173,7 @@ TEST_P(OdometryPermuteDevices, RGBDOdometryMultiScalePointToPlane) {
 
 TEST_P(OdometryPermuteDevices, RGBDOdometryMultiScaleIntensity) {
     core::Device device = GetParam();
-    if (!t::geometry::Image::HAVE_IPPICV &&
-        device.GetType() == core::Device::DeviceType::CPU) {
+    if (!t::geometry::Image::HAVE_IPPICV && device.IsCPU()) {
         return;
     }
 
@@ -200,14 +181,15 @@ TEST_P(OdometryPermuteDevices, RGBDOdometryMultiScaleIntensity) {
     const float depth_max = 3.0;
     const float depth_diff = 0.07;
 
-    t::geometry::Image src_depth = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("RGBD/depth/00000.png"));
-    t::geometry::Image dst_depth = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("RGBD/depth/00002.png"));
-    t::geometry::Image src_color = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("RGBD/color/00000.jpg"));
-    t::geometry::Image dst_color = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("RGBD/color/00002.jpg"));
+    data::SampleRedwoodRGBDImages redwood_data;
+    t::geometry::Image src_depth =
+            *t::io::CreateImageFromFile(redwood_data.GetDepthPaths()[0]);
+    t::geometry::Image dst_depth =
+            *t::io::CreateImageFromFile(redwood_data.GetDepthPaths()[2]);
+    t::geometry::Image src_color =
+            *t::io::CreateImageFromFile(redwood_data.GetColorPaths()[0]);
+    t::geometry::Image dst_color =
+            *t::io::CreateImageFromFile(redwood_data.GetColorPaths()[2]);
 
     t::geometry::RGBDImage src, dst;
     src.color_ = src_color.To(device);
@@ -258,8 +240,7 @@ TEST_P(OdometryPermuteDevices, RGBDOdometryMultiScaleIntensity) {
 
 TEST_P(OdometryPermuteDevices, RGBDOdometryMultiScaleHybrid) {
     core::Device device = GetParam();
-    if (!t::geometry::Image::HAVE_IPPICV &&
-        device.GetType() == core::Device::DeviceType::CPU) {
+    if (!t::geometry::Image::HAVE_IPPICV && device.IsCPU()) {
         return;
     }
 
@@ -267,14 +248,15 @@ TEST_P(OdometryPermuteDevices, RGBDOdometryMultiScaleHybrid) {
     const float depth_max = 3.0;
     const float depth_diff = 0.07;
 
-    t::geometry::Image src_depth = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("RGBD/depth/00000.png"));
-    t::geometry::Image dst_depth = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("RGBD/depth/00002.png"));
-    t::geometry::Image src_color = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("RGBD/color/00000.jpg"));
-    t::geometry::Image dst_color = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("RGBD/color/00002.jpg"));
+    data::SampleRedwoodRGBDImages redwood_data;
+    t::geometry::Image src_depth =
+            *t::io::CreateImageFromFile(redwood_data.GetDepthPaths()[0]);
+    t::geometry::Image dst_depth =
+            *t::io::CreateImageFromFile(redwood_data.GetDepthPaths()[2]);
+    t::geometry::Image src_color =
+            *t::io::CreateImageFromFile(redwood_data.GetColorPaths()[0]);
+    t::geometry::Image dst_color =
+            *t::io::CreateImageFromFile(redwood_data.GetColorPaths()[2]);
 
     t::geometry::RGBDImage src, dst;
     src.color_ = src_color.To(device);

@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #pragma once
@@ -31,6 +12,8 @@
 #include "open3d/core/Tensor.h"
 #include "open3d/core/TensorCheck.h"
 #include "open3d/geometry/LineSet.h"
+#include "open3d/t/geometry/BoundingVolume.h"
+#include "open3d/t/geometry/DrawableGeometry.h"
 #include "open3d/t/geometry/Geometry.h"
 #include "open3d/t/geometry/TensorMap.h"
 #include "open3d/utility/Logging.h"
@@ -38,6 +21,8 @@
 namespace open3d {
 namespace t {
 namespace geometry {
+
+class TriangleMesh;
 
 /// \class LineSet
 /// \brief A LineSet contains points and lines joining them and optionally
@@ -96,7 +81,7 @@ namespace geometry {
 /// Note that `{Get|Set|Has}{Point|Line}Attr()` functions also work "positions"
 /// and "indices".
 
-class LineSet : public Geometry {
+class LineSet : public Geometry, public DrawableGeometry {
 public:
     /// Construct an empty LineSet on the provided device.
     LineSet(const core::Device &device = core::Device("CPU:0"));
@@ -137,6 +122,9 @@ public:
     /// Getter for point_attr_ TensorMap. Used in Pybind.
     const TensorMap &GetPointAttr() const { return point_attr_; }
 
+    /// Getter for point_attr_ TensorMap.
+    TensorMap &GetPointAttr() { return point_attr_; }
+
     /// Get point attributes in point_attr_. Throws exception if the attribute
     /// does not exist.
     ///
@@ -151,6 +139,9 @@ public:
 
     /// Getter for line_attr_ TensorMap. Used in Pybind.
     const TensorMap &GetLineAttr() const { return line_attr_; }
+
+    /// Getter for line_attr_ TensorMap.
+    TensorMap &GetLineAttr() { return line_attr_; }
 
     /// Get line attributes in line_attr_. Throws exception if the
     /// attribute does not exist.
@@ -251,7 +242,7 @@ public:
         SetLineAttr("colors", value);
     }
 
-    /// Returns true if all of the followings are true in point_attr_:
+    /// Returns true if all of the following are true in point_attr_:
     /// 1) attribute key exist
     /// 2) attribute's length as "points"'s length
     /// 3) attribute's length > 0
@@ -264,7 +255,7 @@ public:
     /// 0. Convenience function.
     bool HasPointPositions() const { return HasPointAttr("positions"); }
 
-    /// Returns true if all of the followings are true in line_attr_:
+    /// Returns true if all of the following are true in line_attr_:
     /// 1) attribute key exist
     /// 2) attribute's length as "indices"'s length
     /// 3) attribute's length > 0
@@ -277,7 +268,7 @@ public:
     /// length > 0.  Convenience function.
     bool HasLineIndices() const { return HasLineAttr("indices"); }
 
-    /// Returns true if all of the followings are true in line_attr_:
+    /// Returns true if all of the following are true in line_attr_:
     /// 1) attribute "colors" exist
     /// 2) attribute "colors"'s length as "indices"'s length
     /// 3) attribute "colors"'s length > 0
@@ -346,8 +337,14 @@ public:
     /// \return Rotated line set.
     LineSet &Rotate(const core::Tensor &R, const core::Tensor &center);
 
+    /// \brief Assigns uniform color to all lines of the LineSet.
+    ///
+    /// \param color RGB color for the LineSet. {3,} shaped Tensor.
+    /// Floating color values are clipped between 0.0 and 1.0.
+    LineSet &PaintUniformColor(const core::Tensor &color);
+
     /// \brief Returns the device attribute of this LineSet.
-    core::Device GetDevice() const { return device_; }
+    core::Device GetDevice() const override { return device_; }
 
     /// Create a LineSet from a legacy Open3D LineSet.
     /// \param lineset_legacy Legacy Open3D LineSet.
@@ -364,6 +361,51 @@ public:
 
     /// Convert to a legacy Open3D LineSet.
     open3d::geometry::LineSet ToLegacy() const;
+
+    /// Create an axis-aligned bounding box from point attribute "positions".
+    AxisAlignedBoundingBox GetAxisAlignedBoundingBox() const;
+
+    /// Create an oriented bounding box from point attribute "positions".
+    OrientedBoundingBox GetOrientedBoundingBox() const;
+
+    /// Sweeps the line set rotationally about an axis.
+    /// \param angle The rotation angle in degree.
+    /// \param axis The rotation axis.
+    /// \param resolution The resolution defines the number of intermediate
+    /// sweeps about the rotation axis.
+    /// \param translation The translation along the rotation axis.
+    /// \param capping If true adds caps to the mesh.
+    /// \return A triangle mesh with the result of the sweep operation.
+    TriangleMesh ExtrudeRotation(double angle,
+                                 const core::Tensor &axis,
+                                 int resolution = 16,
+                                 double translation = 0.0,
+                                 bool capping = true) const;
+
+    /// Sweeps the line set along a direction vector.
+    /// \param vector The direction vector.
+    /// \param scale Scalar factor which essentially scales the direction
+    /// vector. \param capping If true adds caps to the mesh. \return A triangle
+    /// mesh with the result of the sweep operation.
+    TriangleMesh ExtrudeLinear(const core::Tensor &vector,
+                               double scale = 1.0,
+                               bool capping = true) const;
+
+    /// Factory function to create a LineSet from intrinsic and extrinsic
+    /// matrices.
+    ///
+    /// \param view_width_px The width of the view, in pixels.
+    /// \param view_height_px The height of the view, in pixels.
+    /// \param intrinsic The intrinsic matrix {3,3} shape.
+    /// \param extrinsic The extrinsic matrix {4,4} shape.
+    /// \param scale camera scale
+    /// \param color tensor with float32 dtype and shape {3}. Default is blue.
+    static LineSet CreateCameraVisualization(int view_width_px,
+                                             int view_height_px,
+                                             const core::Tensor &intrinsic,
+                                             const core::Tensor &extrinsic,
+                                             double scale,
+                                             const core::Tensor &color = {});
 
 protected:
     core::Device device_ = core::Device("CPU:0");

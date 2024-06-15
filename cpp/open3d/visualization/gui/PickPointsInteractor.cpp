@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/visualization/gui/PickPointsInteractor.h"
@@ -30,13 +11,15 @@
 #include <unordered_set>
 
 #include "open3d/geometry/Image.h"
+#include "open3d/geometry/LineSet.h"
 #include "open3d/geometry/PointCloud.h"
 #include "open3d/geometry/TriangleMesh.h"
+#include "open3d/t/geometry/LineSet.h"
 #include "open3d/t/geometry/PointCloud.h"
 #include "open3d/t/geometry/TriangleMesh.h"
 #include "open3d/utility/Logging.h"
 #include "open3d/visualization/gui/Events.h"
-#include "open3d/visualization/rendering/Material.h"
+#include "open3d/visualization/rendering/MaterialRecord.h"
 #include "open3d/visualization/rendering/Open3DScene.h"
 #include "open3d/visualization/rendering/Scene.h"
 #include "open3d/visualization/rendering/View.h"
@@ -92,6 +75,7 @@ private:
         size_t start_index;
 
         Obj(const std::string &n, size_t start) : name(n), start_index(start){};
+        bool IsValid() const { return !name.empty(); }
     };
 
 public:
@@ -122,11 +106,7 @@ public:
                                              return value < o.start_index;
                                          });
             if (next == objects_.end()) {
-                utility::LogError("First object != 0");
-            }
-            if (next == objects_.end()) {
                 return objects_.back();
-
             } else {
                 --next;
                 return *next;
@@ -175,23 +155,39 @@ void PickPointsInteractor::SetPickableGeometry(
     // TriangleMesh so that occluded points are not selected.
     points_.clear();
     for (auto &pg : geometry) {
-        lookup_->Add(pg.name, points_.size());
-
         auto cloud = dynamic_cast<const geometry::PointCloud *>(pg.geometry);
         auto tcloud =
                 dynamic_cast<const t::geometry::PointCloud *>(pg.tgeometry);
         auto mesh = dynamic_cast<const geometry::TriangleMesh *>(pg.geometry);
         auto tmesh =
                 dynamic_cast<const t::geometry::TriangleMesh *>(pg.tgeometry);
+        auto lineset = dynamic_cast<const geometry::LineSet *>(pg.geometry);
+        auto tlineset =
+                dynamic_cast<const t::geometry::LineSet *>(pg.tgeometry);
+
+        // only add geometry with pickable points
+        if (cloud || tcloud || mesh || tmesh || lineset || tlineset) {
+            lookup_->Add(pg.name, points_.size());
+        }
+
         if (cloud) {
             points_.insert(points_.end(), cloud->points_.begin(),
                            cloud->points_.end());
         } else if (mesh) {
             points_.insert(points_.end(), mesh->vertices_.begin(),
                            mesh->vertices_.end());
-        } else if (tcloud || tmesh) {
-            const auto &tpoints = (tcloud ? tcloud->GetPointPositions()
-                                          : tmesh->GetVertexPositions());
+        } else if (lineset) {
+            points_.insert(points_.end(), lineset->points_.begin(),
+                           lineset->points_.end());
+        } else if (tcloud || tmesh || tlineset) {
+            core::Tensor tpoints;
+            if (tcloud) {
+                tpoints = tcloud->GetPointPositions();
+            } else if (tmesh) {
+                tpoints = tmesh->GetVertexPositions();
+            } else if (tlineset) {
+                tpoints = tlineset->GetPointPositions();
+            }
             const size_t n = tpoints.NumElements();
             float *pts = (float *)tpoints.GetDataPtr();
             points_.reserve(points_.size() + n);
@@ -208,7 +204,7 @@ void PickPointsInteractor::SetPickableGeometry(
             // over the occluded points. We paint with a special "mesh index"
             // so that we can to enhanced picking if we hit a mesh index.
             auto mesh_color = CalcIndexColor(kMeshIndex);
-            rendering::Material mat;
+            rendering::MaterialRecord mat;
             mat.shader = "unlitSolidColor";  // ignore any vertex colors!
             mat.base_color = {float(mesh_color.x()), float(mesh_color.y()),
                               float(mesh_color.z()), 1.0f};
@@ -225,7 +221,10 @@ void PickPointsInteractor::SetPickableGeometry(
                 // picking_scene_->AddGeometry(pg.name, tmesh, mat);
             }
         }
+        // TODO what about Lineset selection?
     }
+    // add safety but invalid obj
+    lookup_->Add("", points_.size());
 
     if (points_.size() > kMaxPickableIndex) {
         utility::LogWarning(
@@ -273,35 +272,38 @@ void PickPointsInteractor::SetOnStartedPolygonPicking(
 }
 
 void PickPointsInteractor::Mouse(const MouseEvent &e) {
-    if (e.type == MouseEvent::BUTTON_UP) {
-        if (e.modifiers & int(KeyModifier::ALT)) {
-            if (pending_.empty() || pending_.back().keymods == 0) {
-                pending_.push({{gui::Point(e.x, e.y)}, int(KeyModifier::ALT)});
-                if (on_ui_changed_) {
-                    on_ui_changed_({});
-                }
-            } else {
-                pending_.back().polygon.push_back(gui::Point(e.x, e.y));
-                if (on_started_poly_pick_) {
-                    on_started_poly_pick_();
-                }
-                if (on_ui_changed_) {
-                    std::vector<Eigen::Vector2i> lines;
-                    auto &polygon = pending_.back().polygon;
-                    for (size_t i = 1; i < polygon.size(); ++i) {
-                        auto &p0 = polygon[i - 1];
-                        auto &p1 = polygon[i];
-                        lines.push_back({p0.x, p0.y});
-                        lines.push_back({p1.x, p1.y});
-                    }
-                    lines.push_back({polygon.back().x, polygon.back().y});
-                    lines.push_back({polygon[0].x, polygon[0].y});
-                    on_ui_changed_(lines);
-                }
+    if (e.type != MouseEvent::BUTTON_UP) return;
+
+    bool polygon_picking_requested = e.modifiers & int(KeyModifier::ALT);
+    if (!polygon_picking_requested) {
+        // standard point picking
+        pending_.push({{gui::Point(e.x, e.y)}, e.modifiers});
+        DoPick();
+    } else {
+        // special polygon picking mode
+        if (pending_.empty() || pending_.back().keymods == 0) {
+            pending_.push({{gui::Point(e.x, e.y)}, e.modifiers});
+            if (on_ui_changed_) {
+                on_ui_changed_({});
             }
         } else {
-            pending_.push({{gui::Point(e.x, e.y)}, 0});
-            DoPick();
+            pending_.back().polygon.push_back(gui::Point(e.x, e.y));
+            if (on_started_poly_pick_) {
+                on_started_poly_pick_();
+            }
+            if (on_ui_changed_) {
+                std::vector<Eigen::Vector2i> lines;
+                auto &polygon = pending_.back().polygon;
+                for (size_t i = 1; i < polygon.size(); ++i) {
+                    auto &p0 = polygon[i - 1];
+                    auto &p1 = polygon[i];
+                    lines.push_back({p0.x, p0.y});
+                    lines.push_back({p1.x, p1.y});
+                }
+                lines.push_back({polygon.back().x, polygon.back().y});
+                lines.push_back({polygon[0].x, polygon[0].y});
+                on_ui_changed_(lines);
+            }
         }
     }
 }
@@ -327,8 +329,8 @@ void PickPointsInteractor::DoPick() {
                 [this](std::shared_ptr<geometry::Image> img) {
 #if WANT_DEBUG_IMAGE
                     std::cout << "[debug] Writing pick image to "
-                              << "/tmp/debug.png" << std::endl;
-                    io::WriteImage("/tmp/debug.png", *img);
+                              << "debug.png" << std::endl;
+                    io::WriteImage("debug.png", *img);
 #endif  // WANT_DEBUG_IMAGE
                     this->OnPickImageDone(img);
                 });
@@ -347,8 +349,8 @@ void PickPointsInteractor::ClearPick() {
     SetNeedsRedraw();
 }
 
-rendering::Material PickPointsInteractor::MakeMaterial() {
-    rendering::Material mat;
+rendering::MaterialRecord PickPointsInteractor::MakeMaterial() {
+    rendering::MaterialRecord mat;
     mat.shader = "unlitPolygonOffset";
     mat.point_size = float(point_size_);
     // We are not tonemapping, so src colors are RGB. This prevents the colors
@@ -420,9 +422,12 @@ void PickPointsInteractor::OnPickImageDone(
                     }
                 }
                 auto &o = lookup_->ObjectForIndex(best_idx);
-                size_t obj_idx = best_idx - o.start_index;
-                indices[o.name].push_back(std::pair<size_t, Eigen::Vector3d>(
-                        obj_idx, points_[best_idx]));
+                if (o.IsValid()) {
+                    size_t obj_idx = best_idx - o.start_index;
+                    indices[o.name].push_back(
+                            std::pair<size_t, Eigen::Vector3d>(
+                                    obj_idx, points_[best_idx]));
+                }
             }
         } else {
             // Use polygon fill algorithm to find the pixels that need to be
@@ -566,9 +571,12 @@ void PickPointsInteractor::OnPickImageDone(
             // Now add everything that was "filled"
             for (auto idx : raw_indices) {
                 auto &o = lookup_->ObjectForIndex(idx);
-                size_t obj_idx = idx - o.start_index;
-                indices[o.name].push_back(std::pair<size_t, Eigen::Vector3d>(
-                        obj_idx, points_[idx]));
+                if (o.IsValid()) {
+                    size_t obj_idx = idx - o.start_index;
+                    indices[o.name].push_back(
+                            std::pair<size_t, Eigen::Vector3d>(obj_idx,
+                                                               points_[idx]));
+                }
             }
         }
 

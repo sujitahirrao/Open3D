@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 // @author Ignacio Vizzo     [ivizzo@uni-bonn.de]
 //
@@ -52,8 +33,9 @@ public:
             const override {
         return type_;
     };
-    /// \brief Constructor that takes as input a RobustKernel \params kernel Any
-    /// of the implemented statistical robust kernel for outlier rejection.
+    /// \brief Constructor that takes as input a RobustKernel.
+    /// \param kernel Any of the implemented statistical robust kernel for
+    /// outlier rejection.
     explicit TransformationEstimationForGeneralizedICP(
             double epsilon = 1e-3,
             std::shared_ptr<RobustKernel> kernel = std::make_shared<L2Loss>())
@@ -70,7 +52,7 @@ public:
             const CorrespondenceSet &corres) const override;
 
 public:
-    // Small constant representing covariance along the normal.
+    /// Small constant representing covariance along the normal.
     double epsilon_ = 1e-3;
 
     /// shared_ptr to an Abstract RobustKernel that could mutate at runtime.

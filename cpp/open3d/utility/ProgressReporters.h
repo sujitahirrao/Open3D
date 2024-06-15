@@ -1,32 +1,16 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #pragma once
 
-#include "open3d/utility/Logging.h"  //for ConsoleProgressBar
+#include <functional>
+#include <string>
+
+#include "open3d/utility/ProgressBar.h"
 
 namespace open3d {
 namespace utility {
@@ -55,7 +39,7 @@ public:
         return CallUpdate(percent);
     }
     void Finish() { CallUpdate(100); }
-    // for compatibility with ConsoleProgressBar
+    // for compatibility with ProgressBar
     void operator++() { Update(last_count_ + 1); }
 
 private:
@@ -70,8 +54,7 @@ private:
     int64_t last_count_ = -1;
 };
 
-using utility::ConsoleProgressBar;
-/// update_progress(double percent) functor for ConsoleProgressBar
+/// update_progress(double percent) functor for ProgressBar
 struct ConsoleProgressUpdater {
     ConsoleProgressUpdater(const std::string &progress_info,
                            bool active = false)
@@ -85,7 +68,7 @@ struct ConsoleProgressUpdater {
     }
 
 private:
-    ConsoleProgressBar progress_bar_;
+    utility::ProgressBar progress_bar_;
     int last_pct_ = 0;
 };
 

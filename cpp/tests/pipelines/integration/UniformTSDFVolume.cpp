@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/pipelines/integration/UniformTSDFVolume.h"
@@ -29,6 +10,7 @@
 #include <sstream>
 
 #include "open3d/camera/PinholeCameraIntrinsic.h"
+#include "open3d/data/Dataset.h"
 #include "open3d/geometry/RGBDImage.h"
 #include "open3d/io/ImageIO.h"
 #include "open3d/utility/FileSystem.h"
@@ -100,8 +82,8 @@ TEST(UniformTSDFVolume, Constructor) {
 
 TEST(UniformTSDFVolume, RealData) {
     // Poses
-    std::string trajectory_path =
-            utility::GetDataPathCommon("RGBD/odometry.log");
+    data::SampleRedwoodRGBDImages redwood_data;
+    std::string trajectory_path = redwood_data.GetOdometryLogPath();
     std::vector<Eigen::Matrix4d> poses;
     if (!ReadPoses(trajectory_path, poses)) {
         throw std::runtime_error("Cannot read trajectory file");
@@ -125,19 +107,13 @@ TEST(UniformTSDFVolume, RealData) {
     for (size_t i = 0; i < poses.size(); ++i) {
         // Color
         geometry::Image im_color;
-        std::ostringstream im_color_path;
-        im_color_path << utility::GetDataPathCommon("RGBD/color/")
-                      << std::setfill('0') << std::setw(5) << i << ".jpg";
-        io::ReadImage(im_color_path.str(), im_color);
+        io::ReadImage(redwood_data.GetColorPaths()[i], im_color);
 
         // Depth
         geometry::Image im_depth;
-        std::ostringstream im_depth_path;
-        im_depth_path << utility::GetDataPathCommon("RGBD/depth/")
-                      << std::setfill('0') << std::setw(5) << i << ".png";
-        io::ReadImage(im_depth_path.str(), im_depth);
+        io::ReadImage(redwood_data.GetDepthPaths()[i], im_depth);
 
-        // Ingegrate
+        // Integrate
         std::shared_ptr<geometry::RGBDImage> im_rgbd =
                 geometry::RGBDImage::CreateFromColorAndDepth(
                         im_color, im_depth, /*depth_scale*/ 1000.0,

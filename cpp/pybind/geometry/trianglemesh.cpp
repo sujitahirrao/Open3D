@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/geometry/TriangleMesh.h"
@@ -84,13 +65,13 @@ void pybind_trianglemesh(py::module &m) {
                  "list is needed")
             .def("remove_duplicated_vertices",
                  &TriangleMesh::RemoveDuplicatedVertices,
-                 "Function that removes duplicated verties, i.e., vertices "
+                 "Function that removes duplicated vertices, i.e., vertices "
                  "that have identical coordinates.")
             .def("remove_duplicated_triangles",
                  &TriangleMesh::RemoveDuplicatedTriangles,
                  "Function that removes duplicated triangles, i.e., removes "
-                 "triangles that reference the same three vertices, "
-                 "independent of their order.")
+                 "triangles that reference the same three vertices and have "
+                 "the same orientation.")
             .def("remove_unreferenced_vertices",
                  &TriangleMesh::RemoveUnreferencedVertices,
                  "This function removes vertices from the triangle mesh that "
@@ -140,18 +121,19 @@ void pybind_trianglemesh(py::module &m) {
                  "value, :math:`N` is the  set of adjacent neighbours, "
                  ":math:`w_n` is the weighting of the neighbour based on the "
                  "inverse distance (closer neighbours have higher weight), and "
-                 "lambda is the smoothing parameter.",
-                 "number_of_iterations"_a = 1, "lambda"_a = 0.5,
+                 "lambda_filter is the smoothing parameter.",
+                 "number_of_iterations"_a = 1, "lambda_filter"_a = 0.5,
                  "filter_scope"_a = MeshBase::FilterScope::All)
             .def("filter_smooth_taubin", &TriangleMesh::FilterSmoothTaubin,
                  "Function to smooth triangle mesh using method of Taubin, "
                  "\"Curve and Surface Smoothing Without Shrinkage\", 1995. "
                  "Applies in each iteration two times filter_smooth_laplacian, "
-                 "first with filter parameter lambda and second with filter "
+                 "first with filter parameter lambda_filter and second with "
+                 "filter "
                  "parameter mu as smoothing parameter. This method avoids "
                  "shrinkage of the triangle mesh.",
-                 "number_of_iterations"_a = 1, "lambda"_a = 0.5, "mu"_a = -0.53,
-                 "filter_scope"_a = MeshBase::FilterScope::All)
+                 "number_of_iterations"_a = 1, "lambda_filter"_a = 0.5,
+                 "mu"_a = -0.53, "filter_scope"_a = MeshBase::FilterScope::All)
             .def("has_vertices", &TriangleMesh::HasVertices,
                  "Returns ``True`` if the mesh contains vertices.")
             .def("has_triangles", &TriangleMesh::HasTriangles,
@@ -239,8 +221,7 @@ void pybind_trianglemesh(py::module &m) {
             .def("sample_points_uniformly",
                  &TriangleMesh::SamplePointsUniformly,
                  "Function to uniformly sample points from the mesh.",
-                 "number_of_points"_a = 100, "use_triangle_normal"_a = false,
-                 "seed"_a = -1)
+                 "number_of_points"_a = 100, "use_triangle_normal"_a = false)
             .def("sample_points_poisson_disk",
                  &TriangleMesh::SamplePointsPoissonDisk,
                  "Function to sample points from the mesh, where each point "
@@ -250,7 +231,7 @@ void pybind_trianglemesh(py::module &m) {
                  "noise). Method is based on Yuksel, \"Sample Elimination for "
                  "Generating Poisson Disk Sample Sets\", EUROGRAPHICS, 2015.",
                  "number_of_points"_a, "init_factor"_a = 5, "pcl"_a = nullptr,
-                 "use_triangle_normal"_a = false, "seed"_a = -1)
+                 "use_triangle_normal"_a = false)
             .def("subdivide_midpoint", &TriangleMesh::SubdivideMidpoint,
                  "Function subdivide mesh using midpoint algorithm.",
                  "number_of_iterations"_a = 1)
@@ -267,8 +248,7 @@ void pybind_trianglemesh(py::module &m) {
             .def("simplify_quadric_decimation",
                  &TriangleMesh::SimplifyQuadricDecimation,
                  "Function to simplify mesh using Quadric Error Metric "
-                 "Decimation by "
-                 "Garland and Heckbert",
+                 "Decimation by Garland and Heckbert",
                  "target_number_of_triangles"_a,
                  "maximum_error"_a = std::numeric_limits<double>::infinity(),
                  "boundary_weight"_a = 1.0)
@@ -278,7 +258,7 @@ void pybind_trianglemesh(py::module &m) {
                  &TriangleMesh::ClusterConnectedTriangles,
                  "Function that clusters connected triangles, i.e., triangles "
                  "that are connected via edges are assigned the same cluster "
-                 "index.  This function returns an array that contains the "
+                 "index. This function returns an array that contains the "
                  "cluster index per triangle, a second array contains the "
                  "number of triangles per cluster, and a third vector contains "
                  "the surface area per cluster.")
@@ -356,6 +336,12 @@ void pybind_trianglemesh(py::module &m) {
                         "Kazhdan. See https://github.com/mkazhdan/PoissonRecon",
                         "pcd"_a, "depth"_a = 8, "width"_a = 0, "scale"_a = 1.1,
                         "linear_fit"_a = false, "n_threads"_a = -1)
+            .def_static(
+                    "create_from_oriented_bounding_box",
+                    &TriangleMesh::CreateFromOrientedBoundingBox,
+                    "Factory function to create a solid oriented bounding box.",
+                    "obox"_a, "scale"_a = Eigen::Vector3d::Ones(),
+                    "create_uv_map"_a = false)
             .def_static("create_box", &TriangleMesh::CreateBox,
                         "Factory function to create a box. The left bottom "
                         "corner on the "
@@ -417,8 +403,8 @@ void pybind_trianglemesh(py::module &m) {
                         "rendered as red, green, and blue arrows respectively.",
                         "size"_a = 1.0,
                         "origin"_a = Eigen::Vector3d(0.0, 0.0, 0.0))
-            .def_static("create_moebius", &TriangleMesh::CreateMoebius,
-                        "Factory function to create a Moebius strip.",
+            .def_static("create_mobius", &TriangleMesh::CreateMobius,
+                        "Factory function to create a Mobius strip.",
                         "length_split"_a = 70, "width_split"_a = 15,
                         "twists"_a = 1, "raidus"_a = 1, "flatness"_a = 1,
                         "width"_a = 1, "scale"_a = 1)
@@ -531,7 +517,7 @@ void pybind_trianglemesh(py::module &m) {
             m, "TriangleMesh", "filter_sharpen",
             {{"number_of_iterations",
               " Number of repetitions of this operation"},
-             {"strengh", "Filter parameter."},
+             {"strength", "Filter parameter."},
              {"scope", "Mesh property that should be filtered."}});
     docstring::ClassMethodDocInject(
             m, "TriangleMesh", "filter_smooth_simple",
@@ -542,13 +528,13 @@ void pybind_trianglemesh(py::module &m) {
             m, "TriangleMesh", "filter_smooth_laplacian",
             {{"number_of_iterations",
               " Number of repetitions of this operation"},
-             {"lambda", "Filter parameter."},
+             {"lambda_filter", "Filter parameter."},
              {"scope", "Mesh property that should be filtered."}});
     docstring::ClassMethodDocInject(
             m, "TriangleMesh", "filter_smooth_taubin",
             {{"number_of_iterations",
               " Number of repetitions of this operation"},
-             {"lambda", "Filter parameter."},
+             {"lambda_filter", "Filter parameter."},
              {"mu", "Filter parameter."},
              {"scope", "Mesh property that should be filtered."}});
     docstring::ClassMethodDocInject(
@@ -568,10 +554,7 @@ void pybind_trianglemesh(py::module &m) {
               "If True assigns the triangle normals instead of the "
               "interpolated vertex normals to the returned points. The "
               "triangle normals will be computed and added to the mesh if "
-              "necessary."},
-             {"seed",
-              "Seed value used in the random generator, set to -1 to use a "
-              "random seed value with each function call."}});
+              "necessary."}});
     docstring::ClassMethodDocInject(
             m, "TriangleMesh", "sample_points_poisson_disk",
             {{"number_of_points", "Number of points that should be sampled."},
@@ -585,10 +568,7 @@ void pybind_trianglemesh(py::module &m) {
               "If True assigns the triangle normals instead of the "
               "interpolated vertex normals to the returned points. The "
               "triangle normals will be computed and added to the mesh if "
-              "necessary."},
-             {"seed",
-              "Seed value used in the random generator, set to -1 to use a "
-              "random seed value with each function call."}});
+              "necessary."}});
     docstring::ClassMethodDocInject(
             m, "TriangleMesh", "subdivide_midpoint",
             {{"number_of_iterations",
@@ -701,6 +681,12 @@ void pybind_trianglemesh(py::module &m) {
               "Number of threads used for reconstruction. Set to -1 to "
               "automatically determine it."}});
     docstring::ClassMethodDocInject(
+            m, "TriangleMesh", "create_from_oriented_bounding_box",
+            {{"obox", "OrientedBoundingBox object to create mesh of."},
+             {"scale",
+              "scale factor along each direction of OrientedBoundingBox"},
+             {"create_uv_map", "Add default uv map to the mesh."}});
+    docstring::ClassMethodDocInject(
             m, "TriangleMesh", "create_box",
             {{"width", "x-directional length."},
              {"height", "y-directional length."},
@@ -780,18 +766,17 @@ void pybind_trianglemesh(py::module &m) {
     docstring::ClassMethodDocInject(
             m, "TriangleMesh", "create_coordinate_frame",
             {{"size", "The size of the coordinate frame."},
-             {"origin", "The origin of the cooridnate frame."}});
+             {"origin", "The origin of the coordinate frame."}});
     docstring::ClassMethodDocInject(
-            m, "TriangleMesh", "create_moebius",
-            {{"length_split",
-              "The number of segments along the Moebius strip."},
+            m, "TriangleMesh", "create_mobius",
+            {{"length_split", "The number of segments along the Mobius strip."},
              {"width_split",
-              "The number of segments along the width of the Moebius strip."},
-             {"twists", "Number of twists of the Moebius strip."},
-             {"radius", "The radius of the Moebius strip."},
-             {"flatness", "Controls the flatness/height of the Moebius strip."},
-             {"width", "Width of the Moebius strip."},
-             {"scale", "Scale the complete Moebius strip."}});
+              "The number of segments along the width of the Mobius strip."},
+             {"twists", "Number of twists of the Mobius strip."},
+             {"radius", "The radius of the Mobius strip."},
+             {"flatness", "Controls the flatness/height of the Mobius strip."},
+             {"width", "Width of the Mobius strip."},
+             {"scale", "Scale the complete Mobius strip."}});
 }
 
 void pybind_trianglemesh_methods(py::module &m) {}

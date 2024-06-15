@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/visualization/visualizer/GuiSettingsView.h"
@@ -115,7 +96,6 @@ GuiSettingsView::GuiSettingsView(GuiSettingsModel &model,
     lighting_profile_->AddItem(CUSTOM_LIGHTING);
     lighting_profile_->SetOnValueChanged([this](const char *, int index) {
         if (index < int(GuiSettingsModel::lighting_profiles_.size())) {
-            sun_follows_camera_->SetChecked(false);
             sun_dir_->SetEnabled(true);
             model_.SetSunFollowsCamera(false);
             model_.SetLightingProfile(
@@ -218,6 +198,7 @@ GuiSettingsView::GuiSettingsView(GuiSettingsModel &model,
     });
 
     sun_follows_camera_ = std::make_shared<gui::Checkbox>(" ");
+    sun_follows_camera_->SetChecked(true);
     sun_follows_camera_->SetOnChecked([this](bool checked) {
         sun_dir_->SetEnabled(!checked);
         model_.SetSunFollowsCamera(checked);
@@ -319,6 +300,18 @@ GuiSettingsView::GuiSettingsView(GuiSettingsModel &model,
             [this]() { model_.EstimateNormalsClicked(); });
     generate_normals_->SetEnabled(false);
     mat_grid->AddChild(generate_normals_);
+    mat_grid->AddChild(std::make_shared<gui::Label>("Raw Mode"));
+    basic_mode_ = std::make_shared<gui::Checkbox>("");
+    basic_mode_->SetOnChecked([this](bool checked) {
+        UpdateUIForBasicMode(checked);
+        model_.SetBasicMode(checked);
+    });
+    mat_grid->AddChild(basic_mode_);
+    mat_grid->AddChild(std::make_shared<gui::Label>("Wireframe"));
+    wireframe_mode_ = std::make_shared<gui::Checkbox>("");
+    wireframe_mode_->SetOnChecked(
+            [this](bool checked) { model_.SetWireframeMode(checked); });
+    mat_grid->AddChild(wireframe_mode_);
 
     materials->AddChild(mat_grid);
 
@@ -432,6 +425,45 @@ void GuiSettingsView::Update() {
              model_.GetMaterialType() ==
                      GuiSettingsModel::MaterialType::UNLIT));
     point_size_->SetEnabled(model_.GetDisplayingPointClouds());
+}
+
+void GuiSettingsView::UpdateUIForBasicMode(bool enable) {
+    // Enable/disable UI elements
+    show_skybox_->SetEnabled(!enable);
+    lighting_profile_->SetEnabled(!enable);
+    ibls_->SetEnabled(!enable);
+    ibl_enabled_->SetEnabled(!enable);
+    ibl_intensity_->SetEnabled(!enable);
+    sun_enabled_->SetEnabled(!enable);
+    sun_dir_->SetEnabled(!enable);
+    sun_color_->SetEnabled(!enable);
+    sun_follows_camera_->SetEnabled(!enable);
+    material_color_->SetEnabled(!enable);
+    prefab_material_->SetEnabled(!enable);
+    wireframe_mode_->SetEnabled(!enable);
+
+    // Set lighting environment for basic/non-basic mode
+    auto lighting = model_.GetLighting();  // copy
+    if (enable) {
+        sun_follows_cam_was_on_ = sun_follows_camera_->IsChecked();
+        lighting.ibl_enabled = !enable;
+        lighting.sun_enabled = enable;
+        lighting.sun_intensity = 160000.f;
+        sun_enabled_->SetChecked(true);
+        ibl_enabled_->SetChecked(false);
+        sun_intensity_->SetValue(160000.0);
+        model_.SetCustomLighting(lighting);
+        model_.SetSunFollowsCamera(true);
+        sun_follows_camera_->SetChecked(true);
+        wireframe_mode_->SetChecked(false);
+        model_.SetWireframeMode(false);
+    } else {
+        model_.SetLightingProfile(GuiSettingsModel::lighting_profiles_[0]);
+        if (!sun_follows_cam_was_on_) {
+            sun_follows_camera_->SetChecked(false);
+            model_.SetSunFollowsCamera(false);
+        }
+    }
 }
 
 }  // namespace visualization
